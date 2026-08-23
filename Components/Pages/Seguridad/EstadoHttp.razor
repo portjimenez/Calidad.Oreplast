@@ -1,0 +1,24 @@
+@* Destino de UseStatusCodePagesWithReExecute: por defecto un 401/403 de FallbackPolicy llega
+   como respuesta vacía, antes de que el árbol de componentes de Blazor llegue a renderizar
+   nada (ver AuthorizeRouteView.NotAuthorized, que solo aplica a navegación interactiva dentro
+   de un circuito ya establecido, no a la carga inicial de la página). Esta página sí puede
+   verse porque tiene [AllowAnonymous]: reexpone el mismo contenido según el código. *@
+@page "/estado-http/{Codigo:int}"
+@layout Layout.LayoutEnBlanco
+@attribute [AllowAnonymous]
+
+@if (Codigo is 401 or 403)
+{
+    <AccesoNoAutorizado />
+}
+else
+{
+    <div class="estado-http__generico">
+        <h1>No encontrado</h1>
+        <p>El contenido solicitado no existe.</p>
+    </div>
+}
+
+@code {
+    [Parameter] public int Codigo { get; set; }
+}

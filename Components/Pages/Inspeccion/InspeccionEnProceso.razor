@@ -1,0 +1,161 @@
+@page "/inspeccion-en-proceso"
+
+<PageTitle>Inspección en proceso</PageTitle>
+
+<MaestroDetalle>
+    <Maestro>
+        <PanelCard Titulo="Registros">
+            <table class="tabla-maestro">
+                <thead>
+                    <tr>
+                        <th>Orden</th>
+                        <th>Máquina</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_registros.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="3" class="tabla-maestro__vacio">Sin registros disponibles.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var registro in _registros)
+                        {
+                            <tr class="@ClaseFila(registro)" @onclick="() => _registroSeleccionado = registro">
+                                <td>@registro.Orden</td>
+                                <td>@registro.Maquina</td>
+                                <td>@registro.Tipo</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </PanelCard>
+    </Maestro>
+    <Detalle>
+        <PanelCard Titulo="@TituloDetalle" Cerrable="true">
+            <div class="detalle-inspeccion">
+                <p class="detalle-inspeccion__rolebar">
+                    ● Modo Calidad · puede verificar, registrar no conformidades y liberar el producto.
+                </p>
+
+                <TabStrip Pestanas="_pestanas" @bind-PestanaActiva="_pestanaActiva" />
+
+                <div class="detalle-inspeccion__cuerpo">
+                    @if (_pestanaActiva == "registro" && _registroSeleccionado is not null)
+                    {
+                        var r = _registroSeleccionado;
+                        <div class="detalle-inspeccion__form">
+                            <div class="campo campo--solo-lectura">
+                                <label>Orden de producción</label>
+                                <div class="campo-valor">@r.Orden</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Registro ID</label>
+                                <div class="campo-valor">@r.RegistroId</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Lote</label>
+                                <div class="campo-valor">@r.Lote</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Producto</label>
+                                <div class="campo-valor">@r.Producto</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Cliente</label>
+                                <div class="campo-valor">@r.Cliente</div>
+                            </div>
+                            <div class="campo campo--editable">
+                                <label>Fecha</label>
+                                <div class="campo-valor">@r.Fecha.ToString("dd/MM/yyyy")</div>
+                            </div>
+                            <div class="campo campo--editable">
+                                <label>Turno</label>
+                                <div class="campo-valor">@r.Turno</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Máquina</label>
+                                <div class="campo-valor">@r.Maquina</div>
+                            </div>
+                            <div class="campo campo--solo-lectura">
+                                <label>Operador</label>
+                                <div class="campo-valor">@r.Operador</div>
+                            </div>
+                            <div class="campo campo--chip">
+                                <label>Estado</label>
+                                <div class="campo-valor">
+                                    <EstadoChip Texto="@r.EstadoToleranciaTexto" Tono="@r.EstadoToleranciaTono" />
+                                    <EstadoChip Texto="@r.EstadoProcesoTexto" Tono="@r.EstadoProcesoTono" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="detalle-inspeccion__placeholder">
+                            Contenido de "@TextoPestana(_pestanaActiva)" — pendiente de implementar en el Módulo 2.
+                        </p>
+                    }
+                </div>
+
+                <div class="detalle-inspeccion__botonera">
+                    <button type="button" class="boton boton--primario">Guardar</button>
+                    <button type="button" class="boton boton--fantasma">Ver resumen</button>
+                    <button type="button" class="boton boton--primario">Liberar producto</button>
+                    <button type="button" class="boton boton--enlace-peligro">Registrar no conformidad</button>
+                </div>
+            </div>
+        </PanelCard>
+    </Detalle>
+</MaestroDetalle>
+
+@code {
+    private sealed record RegistroInspeccion(
+        string Orden,
+        string RegistroId,
+        string Lote,
+        string Producto,
+        string Cliente,
+        DateOnly Fecha,
+        string Turno,
+        string Maquina,
+        string Operador,
+        string Tipo,
+        string EstadoToleranciaTexto,
+        TonoChip EstadoToleranciaTono,
+        string EstadoProcesoTexto,
+        TonoChip EstadoProcesoTono);
+
+    private readonly List<RegistroInspeccion> _registros = new();
+
+    private readonly List<TabItem> _pestanas = new()
+    {
+        new("registro", "Registro"),
+        new("especificaciones", "Especificaciones"),
+        new("bobinas", "Bobinas"),
+        new("despeje", "Despeje / Liberación"),
+    };
+
+    private RegistroInspeccion? _registroSeleccionado;
+    private string _pestanaActiva = "registro";
+
+    protected override void OnInitialized()
+    {
+        _registroSeleccionado = _registros.FirstOrDefault();
+    }
+
+    private string TituloDetalle =>
+        _registroSeleccionado is null
+            ? "Inspección en proceso"
+            : $"Inspección en proceso — {_registroSeleccionado.Orden}";
+
+    private string ClaseFila(RegistroInspeccion registro) =>
+        registro == _registroSeleccionado ? "tabla-maestro__fila--seleccionada" : string.Empty;
+
+    private string TextoPestana(string clave) =>
+        _pestanas.FirstOrDefault(p => p.Clave == clave)?.Texto ?? clave;
+}

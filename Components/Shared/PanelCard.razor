@@ -1,0 +1,20 @@
+<section class="panel-card @Class">
+    <header class="panel-card__header">
+        <h2 class="panel-card__title">@Titulo</h2>
+        @if (Cerrable)
+        {
+            <button type="button" class="panel-card__cerrar" aria-label="Cerrar" @onclick="OnCerrar">&times;</button>
+        }
+    </header>
+    <div class="panel-card__cuerpo">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public bool Cerrable { get; set; }
+    [Parameter] public EventCallback OnCerrar { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

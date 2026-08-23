@@ -30,6 +30,7 @@ PublishProfiles/*.user
 *.cache
 
 ## Archivos de entorno y secretos
+appsettings.json
 appsettings.Development.json
 appsettings.*.local.json
 appsettings.Local.json

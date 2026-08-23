@@ -1,0 +1,9 @@
+.selector-usuario-simulado {
+    background: #fff;
+    border: 1px solid #c2cccc;
+    border-radius: 3px;
+    color: var(--op-texto, #1c2626);
+    font-size: 0.72rem;
+    padding: 0.2rem 0.4rem;
+    max-width: 240px;
+}

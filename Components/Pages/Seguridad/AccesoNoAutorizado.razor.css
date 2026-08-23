@@ -1,0 +1,51 @@
+.acceso-denegado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 640px;
+    margin: 4rem auto;
+    padding: 0 1.5rem;
+    text-align: center;
+    gap: 1.25rem;
+}
+
+.acceso-denegado__icono {
+    width: 3.5rem;
+    height: 3.2rem;
+}
+
+.acceso-denegado__titulo {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--op-peligro-fg, #b0342a);
+}
+
+.acceso-denegado__alerta {
+    width: 100%;
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    background: var(--op-peligro-bg, #f9e9e7);
+    color: var(--op-peligro-fg, #b0342a);
+    font-size: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.acceso-denegado__info {
+    width: 100%;
+    padding: 0.85rem 1.1rem;
+    border-radius: 2px;
+    background: var(--op-neutro-bg, #eceeee);
+    color: var(--op-texto, #1c2626);
+    font-size: 0.9rem;
+}
+
+.acceso-denegado__simulacion {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--op-texto-secundario, #5f6d6d);
+}

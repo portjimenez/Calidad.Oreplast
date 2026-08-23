@@ -1,0 +1,29 @@
+.estado-chip {
+    display: inline-block;
+    border-radius: 3px;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.estado-chip--neutro {
+    background: var(--op-neutro-bg);
+    color: var(--op-neutro-fg);
+}
+
+.estado-chip--exito {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+}
+
+.estado-chip--advertencia {
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+}
+
+.estado-chip--peligro {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+}

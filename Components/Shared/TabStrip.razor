@@ -1,0 +1,29 @@
+<div class="tab-strip" role="tablist">
+    @foreach (var pestana in Pestanas)
+    {
+        var activa = pestana.Clave == PestanaActiva;
+        <button type="button"
+                role="tab"
+                aria-selected="@activa"
+                class="tab-strip__boton @(activa ? "tab-strip__boton--activa" : null)"
+                @onclick="() => SeleccionarAsync(pestana.Clave)">
+            @pestana.Texto
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TabItem> Pestanas { get; set; } = Array.Empty<TabItem>();
+    [Parameter] public string PestanaActiva { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
+
+    private Task SeleccionarAsync(string clave)
+    {
+        if (clave == PestanaActiva)
+        {
+            return Task.CompletedTask;
+        }
+
+        return PestanaActivaChanged.InvokeAsync(clave);
+    }
+}

@@ -1,30 +1,63 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">calidad-app</a>
+<nav class="sidebar">
+    <div class="sidebar__explorador">Explorador de objetos</div>
+
+    @foreach (var grupo in _grupos)
+    {
+        <div class="sidebar__grupo">
+            <div class="sidebar__grupo-titulo">@grupo.Titulo</div>
+            @foreach (var item in grupo.Items)
+            {
+                <NavLink class="sidebar__item" href="@item.Href" Match="NavLinkMatch.All">
+                    @item.Texto
+                </NavLink>
+            }
+        </div>
+    }
+
+    <div class="sidebar__pie">
+        <span>Planta Mixco z.2</span>
+        @if (Entorno.IsDevelopment())
+        {
+            <a href="/dev/salir" class="sidebar__cerrar-sesion">Cerrar sesión</a>
+        }
+        else
+        {
+            @* Windows Authentication no permite cerrar sesión desde la app: la credencial la conserva el navegador. *@
+            <span>Cerrar sesión</span>
+        }
     </div>
-</div>
+</nav>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+@code {
+    [Inject] private IWebHostEnvironment Entorno { get; set; } = default!;
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+    private sealed record ItemMenu(string Texto, string Href);
+    private sealed record GrupoMenu(string Titulo, List<ItemMenu> Items);
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
-
+    private readonly List<GrupoMenu> _grupos = new()
+    {
+        new("Monitoreo", new()
+        {
+            new("Panel de calidad", "/"),
+            new("Alertas", "/alertas"),
+        }),
+        new("Producción", new()
+        {
+            new("Órdenes de producción", "/ordenes-produccion"),
+            new("Inspección en proceso", "/inspeccion-en-proceso"),
+            new("Asignación de operadores", "/asignacion-operadores"),
+            new("Control de desperdicio", "/control-desperdicio"),
+        }),
+        new("Calidad", new()
+        {
+            new("No conformidades", "/no-conformidades"),
+            new("Fichas técnicas", "/fichas-tecnicas"),
+            new("Trazabilidad por lote", "/trazabilidad-lote"),
+        }),
+        new("Administración", new()
+        {
+            new("Usuarios y roles", "/usuarios-roles"),
+            new("Catálogos", "/catalogos"),
+        }),
+    };
+}

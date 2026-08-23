@@ -1,0 +1,40 @@
+@inject IAccesoActualInfo AccesoInfo
+@inject IWebHostEnvironment Entorno
+
+<div class="acceso-denegado">
+    <svg class="acceso-denegado__icono" viewBox="0 0 42 38" aria-hidden="true">
+        <path d="M21 2 L41 36 L1 36 Z" fill="#f6b93b" stroke="#e5a11f" stroke-width="2" stroke-linejoin="round" />
+        <rect x="19" y="14" width="4" height="12" rx="1.5" fill="#111111" />
+        <circle cx="21" cy="30" r="2.2" fill="#111111" />
+    </svg>
+
+    <h1 class="acceso-denegado__titulo">Acceso No Autorizado</h1>
+
+    <div class="acceso-denegado__alerta">
+        Usuario '@NombreMostrado' no está autorizado en el sistema.
+        @if (!string.IsNullOrWhiteSpace(AccesoInfo.UltimoResultado?.Mensaje))
+        {
+            <span>@AccesoInfo.UltimoResultado!.Mensaje</span>
+        }
+    </div>
+
+    <div class="acceso-denegado__info">
+        Si cree que esto es un error, contacte al administrador del sistema.
+        De lo contrario, cierre el navegador para intentar de nuevo.
+    </div>
+
+    @if (Entorno.IsDevelopment())
+    {
+        <div class="acceso-denegado__simulacion">
+            <span>Probar con otro usuario simulado:</span>
+            <SelectorUsuarioSimulado />
+        </div>
+    }
+</div>
+
+@code {
+    private string NombreMostrado =>
+        AccesoInfo.UltimoResultado?.UsuarioDominio is { Length: > 0 } dominio
+            ? dominio
+            : "desconocido";
+}

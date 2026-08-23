@@ -1,0 +1,13 @@
+<div class="maestro-detalle">
+    <div class="maestro-detalle__maestro">
+        @Maestro
+    </div>
+    <div class="maestro-detalle__detalle">
+        @Detalle
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? Maestro { get; set; }
+    [Parameter] public RenderFragment? Detalle { get; set; }
+}

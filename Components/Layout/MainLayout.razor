@@ -1,23 +1,41 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IWebHostEnvironment Entorno
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="app-shell">
+    <header class="app-titlebar">
+        <div class="app-titlebar__marca">
+            <span class="app-titlebar__logo">O</span>
+            <span class="app-titlebar__nombre">Oreplast — Control de Calidad</span>
         </div>
+        <div class="app-titlebar__usuario">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="app-titlebar__usuario-nombre">
+                        @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value · @context.User.Identity?.Name
+                    </span>
+                </Authorized>
+                <NotAuthorized>
+                    <span class="app-titlebar__usuario-nombre">Sin sesión</span>
+                </NotAuthorized>
+            </AuthorizeView>
+            @if (Entorno.IsDevelopment())
+            {
+                <SelectorUsuarioSimulado />
+            }
+        </div>
+    </header>
 
-        <article class="content px-4">
+    <div class="app-body">
+        <NavMenu />
+
+        <main class="app-contenido">
             @Body
-        </article>
-    </main>
+        </main>
+    </div>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
+    Ha ocurrido un error inesperado.
+    <a href="." class="reload">Recargar</a>
     <span class="dismiss">🗙</span>
 </div>

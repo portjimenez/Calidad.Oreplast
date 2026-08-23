@@ -1,0 +1,26 @@
+.tab-strip {
+    display: flex;
+    background: var(--op-fondo);
+    border-bottom: 1px solid var(--op-borde);
+    overflow-x: auto;
+}
+
+.tab-strip__boton {
+    appearance: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--op-texto-secundario);
+    font-size: 0.75rem;
+    font-weight: 400;
+    padding: 0.65rem 1rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab-strip__boton--activa {
+    background: #fff;
+    color: var(--op-azul);
+    font-weight: 600;
+    border-bottom-color: var(--op-azul);
+}

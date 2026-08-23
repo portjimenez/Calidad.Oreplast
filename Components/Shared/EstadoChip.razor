@@ -1,0 +1,6 @@
+<span class="estado-chip estado-chip--@Tono.ToString().ToLowerInvariant()">@Texto</span>
+
+@code {
+    [Parameter, EditorRequired] public string Texto { get; set; } = string.Empty;
+    [Parameter] public TonoChip Tono { get; set; } = TonoChip.Neutro;
+}

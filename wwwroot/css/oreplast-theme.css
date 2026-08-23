@@ -1,0 +1,21 @@
+:root {
+    --op-azul: #1f6fb2;
+    --op-fondo: #eef2f2;
+    --op-borde: #d4dcdc;
+    --op-borde-suave: #e9eeee;
+    --op-texto: #1c2626;
+    --op-texto-secundario: #5f6d6d;
+    --op-fila-alt: #f7fafa;
+    --op-seleccion: #cfe3f4;
+
+    --op-exito-bg: #e3f1e9;
+    --op-exito-fg: #1f7a4d;
+    --op-peligro-bg: #f9e9e7;
+    --op-peligro-fg: #b0342a;
+    --op-advertencia-bg: #fbf1e0;
+    --op-advertencia-fg: #b5720a;
+    --op-neutro-bg: #eceeee;
+    --op-neutro-fg: #5f6d6d;
+    --op-info-bg: #eef4fb;
+    --op-info-fg: #155a94;
+}

@@ -1,0 +1,26 @@
+@* Solo se renderiza en Development. Cambia de usuario/rol simulado con una navegación real
+   (GET /dev/simular), igual que un login real, para que la autorización a nivel de página
+   (AuthorizeRouteView/FallbackPolicy) se re-evalúe correctamente. *@
+@inject SimuladorIdentidadService Simulador
+@inject IHttpContextAccessor HttpContextAccessor
+
+<select class="selector-usuario-simulado" title="Usuario simulado (solo desarrollo)"
+        onchange="location.href='/dev/simular?usuario=' + encodeURIComponent(this.value)">
+    @foreach (var usuario in _usuarios)
+    {
+        <option value="@usuario.UsuarioDominio" selected="@(usuario.UsuarioDominio == _actual)">
+            @usuario.RolNombre · @usuario.NombreCompleto
+        </option>
+    }
+</select>
+
+@code {
+    private List<UsuarioSimulado> _usuarios = new();
+    private string? _actual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuarios = await Simulador.ObtenerUsuariosDisponiblesAsync();
+        _actual = HttpContextAccessor.HttpContext?.Request.Cookies[SimulacionConstantes.CookieUsuario];
+    }
+}
