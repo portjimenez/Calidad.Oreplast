@@ -1,0 +1,58 @@
+## Directorios de compilación
+bin/
+obj/
+out/
+db/
+docs/
+CLAUDE.md
+
+## Archivos de Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+
+## Publicación
+publish/
+PublishProfiles/*.user
+
+## Logs y archivos temporales
+*.log
+*.tmp
+*.cache
+
+## Archivos de entorno y secretos
+appsettings.Development.json
+appsettings.*.local.json
+appsettings.Local.json
+*.env
+.env
+.env.*
+secrets.json
+
+## NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+## Node (si se usan herramientas de frontend)
+node_modules/
+
+## Sistema operativo
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Certificados y claves
+*.pfx
+*.p12
+*.key
+*.pem
