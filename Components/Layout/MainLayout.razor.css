@@ -22,16 +22,14 @@
 }
 
 .app-titlebar__logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.4rem;
-    height: 1.4rem;
+    display: block;
+    height: 1.75rem;
+    width: auto;
+    padding: 0.15rem 0.35rem;
     border-radius: 3px;
+    /* El logotipo es negro sobre fondo claro: va dentro de un recuadro blanco
+       para que contraste con el azul de la barra de título. */
     background: #fff;
-    color: var(--op-azul);
-    font-weight: 800;
-    font-size: 0.8rem;
 }
 
 .app-titlebar__nombre {
