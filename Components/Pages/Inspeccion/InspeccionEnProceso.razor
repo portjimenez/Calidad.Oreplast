@@ -52,7 +52,7 @@
                     }
                     else
                     {
-                        @foreach (var registro in _registros)
+                        @foreach (var registro in RegistrosPagina)
                         {
                             <tr class="@ClaseFila(registro)" @onclick="() => SeleccionarAsync(registro)">
                                 <td>@registro.NumeroOP</td>
@@ -67,6 +67,24 @@
                     }
                 </tbody>
             </table>
+
+            @if (!_cargandoLista && _registros.Count > 0)
+            {
+                <div class="paginador">
+                    <span class="paginador__rango">@RangoMostrado</span>
+                    <div class="paginador__controles">
+                        <button type="button" class="paginador__boton"
+                                disabled="@(_pagina <= 1)"
+                                @onclick="() => IrAPagina(_pagina - 1)"
+                                aria-label="Página anterior">‹</button>
+                        <span class="paginador__pagina">@_pagina / @TotalPaginas</span>
+                        <button type="button" class="paginador__boton"
+                                disabled="@(_pagina >= TotalPaginas)"
+                                @onclick="() => IrAPagina(_pagina + 1)"
+                                aria-label="Página siguiente">›</button>
+                    </div>
+                </div>
+            }
         </PanelCard>
     </Maestro>
     <Detalle>
@@ -320,6 +338,13 @@
 
     private readonly FiltroRegistros _filtro = new() { MaxFilas = 100 };
 
+    /// <summary>Filas visibles por página en el maestro.</summary>
+    private const int TamanoPagina = 10;
+
+    /// <summary>Página actual del maestro (1..TotalPaginas). La paginación es
+    /// en cliente: el SP ya acota el resultado con MaxFilas.</summary>
+    private int _pagina = 1;
+
     private List<RegistroResumen> _registros = [];
     private RegistroResumen? _seleccionado;
     private RegistroDetalle? _detalle;
@@ -384,6 +409,10 @@
             {
                 LimpiarDetalle();
             }
+
+            // El total pudo cambiar (filtro nuevo, registro creado o cerrado):
+            // se reencuadra la página para no quedar en una vacía.
+            AjustarPagina();
         }
         catch (Exception ex)
         {
@@ -403,6 +432,11 @@
         }
 
         _seleccionado = registro;
+
+        // Al abrir un registro desde un enlace o recién creado, el maestro se
+        // sitúa en la página donde está esa fila para que quede visible.
+        AjustarPagina();
+
         _modoNuevo = false;
         _avisoEncabezado = null;
         _cargandoDetalle = true;
@@ -522,13 +556,52 @@
     private Task BuscarAsync(ChangeEventArgs e)
     {
         _filtro.Busqueda = e.Value?.ToString();
+        _pagina = 1;
         return CargarListaAsync();
     }
 
     private Task CambiarSoloAbiertosAsync(ChangeEventArgs e)
     {
         _filtro.SoloAbiertos = e.Value is true;
+        _pagina = 1;
         return CargarListaAsync();
+    }
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_registros.Count / (double)TamanoPagina));
+
+    private IEnumerable<RegistroResumen> RegistrosPagina =>
+        _registros.Skip((_pagina - 1) * TamanoPagina).Take(TamanoPagina);
+
+    private string RangoMostrado
+    {
+        get
+        {
+            var desde = ((_pagina - 1) * TamanoPagina) + 1;
+            var hasta = Math.Min(_pagina * TamanoPagina, _registros.Count);
+            return $"{desde}–{hasta} de {_registros.Count}";
+        }
+    }
+
+    private void IrAPagina(int pagina)
+    {
+        _pagina = Math.Clamp(pagina, 1, TotalPaginas);
+    }
+
+    /// <summary>Mantiene la página dentro del rango válido y, si hay un
+    /// registro abierto, se coloca en la página donde quedó ese registro.</summary>
+    private void AjustarPagina()
+    {
+        if (_seleccionado is not null)
+        {
+            var indice = _registros.FindIndex(r => r.RegistroId == _seleccionado.RegistroId);
+            if (indice >= 0)
+            {
+                _pagina = (indice / TamanoPagina) + 1;
+                return;
+            }
+        }
+
+        _pagina = Math.Clamp(_pagina, 1, TotalPaginas);
     }
 
     private void LimpiarDetalle()
