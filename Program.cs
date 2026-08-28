@@ -1,5 +1,7 @@
 using calidad_app.Components;
 using calidad_app.Data;
+using calidad_app.Data.Sp;
+using calidad_app.Services.Inspeccion;
 using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
@@ -22,6 +24,19 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAccesoActualInfo, AccesoActualInfo>();
+// Identidad y datos de auditoría de quien ejecuta cada acción: los servicios de
+// inspección resuelven con ellos el @UsuarioId y la IP que exigen los procedimientos,
+// para que la pantalla nunca tenga que enviarlos (ni pueda falsearlos).
+builder.Services.AddScoped<IUsuarioActual, UsuarioActual>();
+builder.Services.AddScoped<IContextoAuditoria, ContextoAuditoria>();
+
+// Módulo 2 — Inspección en proceso. EjecutorSp baja a ADO.NET porque varios
+// procedimientos devuelven más de un conjunto de resultados y EF Core solo lee el primero.
+builder.Services.AddScoped<EjecutorSp>();
+builder.Services.AddScoped<IRegistroInspeccionService, RegistroInspeccionService>();
+builder.Services.AddScoped<IBobinaService, BobinaService>();
+builder.Services.AddScoped<IParametroService, ParametroService>();
+builder.Services.AddScoped<ICatalogoInspeccionService, CatalogoInspeccionService>();
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la
 // primera carga de página, no solo dentro del árbol de componentes de Blazor.

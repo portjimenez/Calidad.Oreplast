@@ -156,3 +156,73 @@
 .boton--enlace-peligro:hover {
     text-decoration: underline;
 }
+
+/* ---- Filtros del maestro ---- */
+.filtros {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0 0.6rem;
+    flex-wrap: wrap;
+}
+
+.filtros__busqueda {
+    flex: 1 1 140px;
+    min-width: 0;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.75rem;
+    border: 1px solid #c2cccc;
+    border-radius: 3px;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+    white-space: nowrap;
+}
+
+/* ---- Mensaje de error de la operación ---- */
+.detalle-inspeccion__error {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    font-size: 0.75rem;
+}
+
+/* ---- Pista de la botonera ---- */
+.detalle-inspeccion__pista {
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Alta de registro ---- */
+.filtros__nuevo {
+    flex: 0 0 auto;
+}
+
+/* ---- Edición del encabezado ---- */
+.campo-entrada {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.78rem;
+    border: 1px solid #c2cccc;
+    border-radius: 3px;
+    background: #fff;
+    width: 100%;
+}
+
+.encabezado-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.encabezado-aviso {
+    font-size: 0.72rem;
+    color: var(--op-exito-fg);
+}

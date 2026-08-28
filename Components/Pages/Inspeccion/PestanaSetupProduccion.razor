@@ -1,0 +1,278 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@inject IRegistroInspeccionService Registros
+@inject ICatalogoInspeccionService Catalogos
+
+<div class="setup-produccion">
+    @if (_error is not null)
+    {
+        <p class="sp__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="sp__aviso" role="status">@_aviso</p>
+    }
+
+    @* ================= Setup ================= *@
+    <section class="bloque">
+        <div class="bloque__encabezado">
+            <h4 class="bloque__titulo">Setup</h4>
+            <span class="bloque__estado">
+                @(_setup.Capturado ? "Capturado" : "Sin capturar")
+            </span>
+        </div>
+
+        <div class="campos">
+            <label>Fecha
+                <input type="date" disabled="@(!EsEditable)"
+                       @bind="_setup.FechaSetup" @bind:format="yyyy-MM-dd" />
+            </label>
+            <label>Operador
+                <select disabled="@(!EsEditable)" value="@(_setup.OperadorSetupId?.ToString() ?? "")"
+                        @onchange="e => _setup.OperadorSetupId = LeerEnteroNulo(e)">
+                    <option value="">— Sin asignar —</option>
+                    @foreach (var operador in _catalogos.Operadores)
+                    {
+                        <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                    }
+                </select>
+            </label>
+            <label>Inicio
+                <input type="datetime-local" disabled="@(!EsEditable)"
+                       @bind="_setup.FechaHoraInicio" @bind:format="yyyy-MM-ddTHH:mm" />
+            </label>
+            <label>Fin
+                <input type="datetime-local" disabled="@(!EsEditable)"
+                       @bind="_setup.FechaHoraFin" @bind:format="yyyy-MM-ddTHH:mm" />
+            </label>
+            <label class="campo--calculado">Horas
+                <span class="valor-calculado">@Formato(_setup.HorasSetup)</span>
+            </label>
+            <label>Tiempo muerto (min)
+                <input type="number" disabled="@(!EsEditable)" @bind="_setup.TiempoMuertoMin" />
+            </label>
+            <label>Razón del tiempo muerto
+                <select disabled="@(!EsEditable)" value="@(_setup.RazonId?.ToString() ?? "")"
+                        @onchange="e => _setup.RazonId = LeerEnteroNulo(e)">
+                    <option value="">— Ninguna —</option>
+                    @foreach (var razon in _catalogos.Razones)
+                    {
+                        <option value="@razon.RazonId">@razon.Nombre</option>
+                    }
+                </select>
+            </label>
+            <label>Desperdicio (kg)
+                <input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_setup.KgDesperdicio" />
+            </label>
+            <label>Material duro (kg)
+                <input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_setup.KgDuro" />
+            </label>
+        </div>
+
+        <p class="nota">Las horas las calcula la base a partir del intervalo, al guardar.</p>
+
+        @if (EsEditable)
+        {
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarSetupAsync">
+                @(_guardando ? "Guardando…" : "Guardar setup")
+            </button>
+        }
+    </section>
+
+    @* ================= Producción ================= *@
+    <section class="bloque">
+        <div class="bloque__encabezado">
+            <h4 class="bloque__titulo">Producción</h4>
+            <span class="bloque__estado">
+                @(_produccion.Capturada ? "Capturada" : "Sin capturar")
+            </span>
+        </div>
+
+        <div class="campos">
+            <label>Fecha
+                <input type="date" disabled="@(!EsEditable)"
+                       @bind="_produccion.FechaProduccion" @bind:format="yyyy-MM-dd" />
+            </label>
+            <label>Operador
+                <select disabled="@(!EsEditable)" value="@(_produccion.OperadorId?.ToString() ?? "")"
+                        @onchange="e => _produccion.OperadorId = LeerEnteroNulo(e)">
+                    <option value="">— Sin asignar —</option>
+                    @foreach (var operador in _catalogos.Operadores)
+                    {
+                        <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                    }
+                </select>
+            </label>
+            <label>Inicio
+                <input type="datetime-local" disabled="@(!EsEditable)"
+                       @bind="_produccion.FechaHoraInicio" @bind:format="yyyy-MM-ddTHH:mm" />
+            </label>
+            <label>Fin
+                <input type="datetime-local" disabled="@(!EsEditable)"
+                       @bind="_produccion.FechaHoraFin" @bind:format="yyyy-MM-ddTHH:mm" />
+            </label>
+            <label class="campo--calculado">Horas
+                <span class="valor-calculado">@Formato(_produccion.HorasProduccion)</span>
+            </label>
+            <label>Tiempo muerto (min)
+                <input type="number" disabled="@(!EsEditable)" @bind="_produccion.TiempoMuertoMin" />
+            </label>
+            <label>Razón del tiempo muerto
+                <select disabled="@(!EsEditable)" value="@(_produccion.RazonId?.ToString() ?? "")"
+                        @onchange="e => _produccion.RazonId = LeerEnteroNulo(e)">
+                    <option value="">— Ninguna —</option>
+                    @foreach (var razon in _catalogos.Razones)
+                    {
+                        <option value="@razon.RazonId">@razon.Nombre</option>
+                    }
+                </select>
+            </label>
+            <label>Desperdicio (kg)
+                <input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_produccion.KgDesperdicio" />
+            </label>
+            <label>Refill (kg)
+                <input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_produccion.KgRefill" />
+            </label>
+        </div>
+
+        @* Derivados de las bobinas: no se capturan, se calculan *@
+        <div class="derivados">
+            <div class="derivado">
+                <span class="derivado__etiqueta">Producido (bobinas confirmadas)</span>
+                <span class="derivado__valor">@_produccion.KgProducidos.ToString("0.000") kg</span>
+            </div>
+            <div class="derivado">
+                <span class="derivado__etiqueta">Bobinas confirmadas</span>
+                <span class="derivado__valor">@_produccion.TotalBobinas</span>
+            </div>
+            <div class="derivado">
+                <span class="derivado__etiqueta">Desperdicio total (setup + producción)</span>
+                <span class="derivado__valor">@DesperdicioTotal.ToString("0.000") kg</span>
+            </div>
+            <div class="derivado">
+                <span class="derivado__etiqueta">Desperdicio sobre lo producido</span>
+                <span class="derivado__valor">@PorcentajeDesperdicio</span>
+            </div>
+        </div>
+
+        @if (EsEditable)
+        {
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarProduccionAsync">
+                @(_guardando ? "Guardando…" : "Guardar producción")
+            </button>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int RegistroId { get; set; }
+    [Parameter] public int AreaId { get; set; }
+    [Parameter] public bool EsEditable { get; set; }
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private SetupRegistro _setup = new();
+    private ProduccionRegistro _produccion = new();
+    private CatalogosInspeccion _catalogos = new();
+
+    private string? _error;
+    private string? _aviso;
+    private bool _guardando;
+    private int _registroCargado;
+
+    private decimal DesperdicioTotal =>
+        (_setup.KgDesperdicio ?? 0m) + (_setup.KgDuro ?? 0m) + (_produccion.KgDesperdicio ?? 0m);
+
+    /// <summary>
+    /// Indicador que el jefe de producción mira primero. Se muestra solo cuando
+    /// hay producción registrada: sin kilos buenos el porcentaje no significa nada.
+    /// </summary>
+    private string PorcentajeDesperdicio =>
+        _produccion.KgProducidos <= 0m
+            ? "—"
+            : $"{DesperdicioTotal / _produccion.KgProducidos * 100m:0.##} %";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_registroCargado == RegistroId)
+        {
+            return;
+        }
+
+        _registroCargado = RegistroId;
+        _error = null;
+        _aviso = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            if (_catalogos.Operadores.Count == 0)
+            {
+                _catalogos = await Catalogos.ObtenerAsync(AreaId);
+            }
+
+            _setup = await Registros.ObtenerSetupAsync(RegistroId)
+                     ?? new SetupRegistro { RegistroId = RegistroId };
+
+            _produccion = await Registros.ObtenerProduccionAsync(RegistroId)
+                          ?? new ProduccionRegistro { RegistroId = RegistroId };
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private Task GuardarSetupAsync() =>
+        EjecutarAsync(async () =>
+        {
+            _setup.RegistroId = RegistroId;
+            _setup = await Registros.GuardarSetupAsync(_setup) ?? _setup;
+            _aviso = "Setup guardado.";
+        });
+
+    private Task GuardarProduccionAsync() =>
+        EjecutarAsync(async () =>
+        {
+            _produccion.RegistroId = RegistroId;
+            _produccion = await Registros.GuardarProduccionAsync(_produccion) ?? _produccion;
+            _aviso = "Producción guardada.";
+        });
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await accion();
+            await OnCambio.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private static int? LeerEnteroNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : null;
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.00") ?? "—";
+
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

@@ -1,0 +1,573 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@inject IBobinaService Bobinas
+@inject IParametroService Parametros
+
+<div class="bobinas">
+    @if (_error is not null)
+    {
+        <p class="bobinas__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="bobinas__aviso" role="status">@_aviso</p>
+    }
+
+    <div class="bobinas__barra">
+        <span class="bobinas__resumen">
+            @_produccion.Bobinas.Count bobina(s) · @_produccion.Confirmadas confirmada(s) ·
+            @_produccion.PesoTotal.ToString("0.000") kg
+        </span>
+        @if (EsEditable)
+        {
+            <button type="button" class="boton boton--primario" @onclick="NuevaBobina">
+                Agregar bobina
+            </button>
+        }
+    </div>
+
+    @* ---- Formulario de alta o corrección ---- *@
+    @if (_edicion is not null)
+    {
+        <div class="bobinas__form">
+            <h4 class="bobinas__form-titulo">
+                @(_edicion.BobinaId is null ? "Nueva bobina" : $"Corrigiendo la bobina {_edicion.IdBobi}")
+            </h4>
+            <div class="bobinas__form-campos">
+                <label>Peso (kg)<input type="number" step="0.001" @bind="_edicion.Peso" /></label>
+                <label>Metros<input type="number" step="0.001" @bind="_edicion.Metros" /></label>
+                <label>Ancho (mm)<input type="number" step="0.001" @bind="_edicion.Ancho" /></label>
+                <label>Fuelle (mm)<input type="number" step="0.001" @bind="_edicion.Fuelle" /></label>
+                <label>Calibre (mic)<input type="number" step="0.001" @bind="_edicion.Calibre" /></label>
+            </div>
+            <div class="bobinas__form-acciones">
+                <button type="button" class="boton boton--primario"
+                        disabled="@_guardando" @onclick="GuardarBobinaAsync">
+                    @(_guardando ? "Guardando…" : "Guardar bobina")
+                </button>
+                <button type="button" class="boton boton--fantasma" @onclick="() => _edicion = null">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ---- Listado de bobinas ---- *@
+    <table class="tabla-bobinas">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th class="num">Peso</th>
+                <th class="num">Metros</th>
+                <th class="num">Ancho</th>
+                <th class="num">Calibre</th>
+                <th>Checklist</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_produccion.Bobinas.Count == 0)
+            {
+                <tr><td colspan="8" class="tabla-bobinas__vacio">Todavía no hay bobinas registradas.</td></tr>
+            }
+            else
+            {
+                @foreach (var bobina in _produccion.Bobinas)
+                {
+                    <tr class="@(bobina.BobinaId == _seleccionada?.BobinaId ? "tabla-bobinas__fila--seleccionada" : null)"
+                        @onclick="() => SeleccionarAsync(bobina)">
+                        <td>@bobina.IdBobi</td>
+                        <td class="num">@Formato(bobina.Peso)</td>
+                        <td class="num">@Formato(bobina.Metros)</td>
+                        <td class="num">@Formato(bobina.Ancho)</td>
+                        <td class="num">@Formato(bobina.Calibre)</td>
+                        <td>@bobina.ItemsCumplidos/@bobina.ItemsRespondidos</td>
+                        <td>
+                            @if (bobina.Confirmada)
+                            {
+                                <EstadoChip Texto="@(bobina.Ok ? "Confirmada" : "Con observaciones")"
+                                            Tono="@(bobina.Ok ? TonoChip.Exito : TonoChip.Advertencia)" />
+                            }
+                            else
+                            {
+                                <EstadoChip Texto="En captura" Tono="TonoChip.Neutro" />
+                            }
+                            @if (bobina.ParametrosFueraDeRango > 0)
+                            {
+                                <EstadoChip Texto="@($"{bobina.ParametrosFueraDeRango} fuera de rango")"
+                                            Tono="TonoChip.Peligro" />
+                            }
+                        </td>
+                        <td class="tabla-bobinas__acciones">
+                            @if (EsEditable && bobina.EsEditable)
+                            {
+                                <button type="button" class="enlace" @onclick:stopPropagation
+                                        @onclick="() => Editar(bobina)">Corregir</button>
+                                <button type="button" class="enlace enlace--peligro" @onclick:stopPropagation
+                                        @onclick="() => EliminarAsync(bobina)">Eliminar</button>
+                            }
+                            else if (EsEditable && bobina.Confirmada && !bobina.Bloqueada)
+                            {
+                                <button type="button" class="enlace" @onclick:stopPropagation
+                                        @onclick="() => RetirarConfirmacionAsync(bobina)">Reabrir</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    @* ---- Acumulados: se calculan en la base, no se almacenan ---- *@
+    @if (_produccion.Acumulados.Any(a => a.Cantidad > 0))
+    {
+        <table class="tabla-acumulados">
+            <caption>Acumulados de la corrida</caption>
+            <thead>
+                <tr>
+                    <th>Medida</th>
+                    <th class="num">Total</th>
+                    <th class="num">Mínimo</th>
+                    <th class="num">Máximo</th>
+                    <th class="num">Promedio</th>
+                    <th class="num">Desv. est.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var acumulado in _produccion.Acumulados.Where(a => a.Cantidad > 0))
+                {
+                    <tr>
+                        <td>@acumulado.Medida</td>
+                        <td class="num">@Formato(acumulado.Total)</td>
+                        <td class="num">@Formato(acumulado.Minimo)</td>
+                        <td class="num">@Formato(acumulado.Maximo)</td>
+                        <td class="num">@Formato(acumulado.Promedio)</td>
+                        <td class="num">@Formato(acumulado.Desviacion)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @* ---- Detalle de la bobina seleccionada ---- *@
+    @if (_seleccionada is not null)
+    {
+        <div class="bobina-detalle">
+            <h4 class="bobina-detalle__titulo">Bobina @_seleccionada.IdBobi</h4>
+
+            @if (_confirmacion is not null)
+            {
+                <div class="bobina-detalle__resultado @(_confirmacion.Ok ? "es-ok" : "es-observada")">
+                    @if (_confirmacion.Ok)
+                    {
+                        <span>Bobina confirmada sin observaciones.</span>
+                    }
+                    else
+                    {
+                        <span>
+                            Bobina confirmada con @_confirmacion.ParametrosFueraDeRango parámetro(s) fuera de
+                            rango y @_confirmacion.ItemsChecklistPendientes ítem(es) de checklist pendiente(s).
+                            @if (_confirmacion.AlertasGeneradas > 0)
+                            {
+                                <text>Se generaron @_confirmacion.AlertasGeneradas alerta(s) para Calidad.</text>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+
+            <div class="bobina-detalle__columnas">
+                @* Mediciones contra la ficha técnica *@
+                <section class="bobina-detalle__bloque">
+                    <h5>Mediciones</h5>
+                    @if (_mediciones.Count == 0)
+                    {
+                        <p class="bobina-detalle__vacio">
+                            No hay parámetros de producto definidos en el catálogo.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="mediciones">
+                            @foreach (var medicion in _mediciones)
+                            {
+                                <div class="medicion">
+                                    <label class="medicion__nombre">
+                                        @medicion.ParametroNombre
+                                        @if (medicion.EsCritico)
+                                        {
+                                            <span class="medicion__critico" title="Parámetro crítico">*</span>
+                                        }
+                                    </label>
+                                    <input type="number" step="0.0001" class="medicion__valor"
+                                           disabled="@(!PuedeMedir)"
+                                           value="@_valores[medicion.ParametroId]"
+                                           @onchange="e => CambiarValor(medicion.ParametroId, e)" />
+                                    <span class="medicion__rango">
+                                        @(medicion.TieneTolerancia ? medicion.RangoTexto : "Sin tolerancia en ficha")
+                                    </span>
+                                    <span class="medicion__estado">
+                                        @if (medicion.DentroDeRango == false)
+                                        {
+                                            <EstadoChip Texto="Fuera" Tono="TonoChip.Peligro" />
+                                        }
+                                        else if (medicion.DentroDeRango == true)
+                                        {
+                                            <EstadoChip Texto="OK" Tono="TonoChip.Exito" />
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+
+                        @if (PuedeMedir)
+                        {
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@_guardando" @onclick="GuardarMedicionesAsync">
+                                @(_guardando ? "Guardando…" : "Guardar mediciones")
+                            </button>
+                        }
+                    }
+                </section>
+
+                @* Checklist de calidad de la bobina *@
+                <section class="bobina-detalle__bloque">
+                    <h5>Checklist de calidad</h5>
+                    @if (_checklist.Count == 0)
+                    {
+                        <p class="bobina-detalle__vacio">
+                            No hay ítems de calidad por bobina en el catálogo del área.
+                        </p>
+                    }
+                    else
+                    {
+                        <ul class="checklist">
+                            @foreach (var item in _checklist)
+                            {
+                                <li class="checklist__item">
+                                    <label>
+                                        <input type="checkbox"
+                                               disabled="@(!PuedeMedir)"
+                                               checked="@_respuestas[item.ItemId]"
+                                               @onchange="e => CambiarRespuesta(item.ItemId, e)" />
+                                        @item.Texto
+                                    </label>
+                                </li>
+                            }
+                        </ul>
+
+                        @if (PuedeMedir)
+                        {
+                            <button type="button" class="boton boton--fantasma"
+                                    disabled="@_guardando" @onclick="GuardarChecklistAsync">
+                                Guardar checklist
+                            </button>
+                        }
+                    }
+                </section>
+            </div>
+
+            @if (EsEditable && !_seleccionada.Confirmada && !_seleccionada.Bloqueada)
+            {
+                <div class="bobina-detalle__acciones">
+                    <button type="button" class="boton boton--primario"
+                            disabled="@_guardando" @onclick="ConfirmarAsync">
+                        Confirmar bobina
+                    </button>
+                    <span class="bobina-detalle__nota">
+                        Al confirmar se comparan las mediciones contra la ficha técnica y se levantan
+                        las alertas que correspondan.
+                    </span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int RegistroId { get; set; }
+
+    /// <summary>El registro admite cambios (no está liberado, cerrado ni bloqueado).</summary>
+    [Parameter] public bool EsEditable { get; set; }
+
+    /// <summary>Avisa al contenedor para que refresque los contadores del maestro.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    /// <summary>
+    /// Los parámetros se dividen por convención del catálogo: hasta 199 son de
+    /// máquina (se miden una vez por corrida) y desde 200 son de producto, que
+    /// es lo que se mide en cada bobina. Lo correcto sería una columna de ámbito
+    /// en cat.ParametroDefinicion; mientras no exista, el corte vive aquí,
+    /// nombrado y en un solo lugar.
+    /// </summary>
+    private const int OrdenPrimerParametroDeProducto = 200;
+
+    private ProduccionPorBobina _produccion = new();
+    private BobinaResumen? _seleccionada;
+    private BobinaEntrada? _edicion;
+    private ConfirmacionBobina? _confirmacion;
+
+    private List<ParametroMedicion> _mediciones = [];
+    private List<ItemChecklist> _checklist = [];
+    private readonly Dictionary<int, decimal?> _valores = [];
+    private readonly Dictionary<int, bool> _respuestas = [];
+
+    private string? _error;
+    private string? _aviso;
+    private bool _guardando;
+    private int _registroCargado;
+
+    /// <summary>Solo se captura sobre una bobina abierta de un registro editable.</summary>
+    private bool PuedeMedir =>
+        EsEditable && _seleccionada is { Confirmada: false, Bloqueada: false };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_registroCargado == RegistroId)
+        {
+            return;
+        }
+
+        _registroCargado = RegistroId;
+        LimpiarSeleccion();
+        _edicion = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            _produccion = await Bobinas.ListarAsync(RegistroId);
+
+            // Si la bobina abierta desapareció (se eliminó), se cierra su panel.
+            if (_seleccionada is not null)
+            {
+                var vigente = _produccion.Bobinas
+                    .FirstOrDefault(b => b.BobinaId == _seleccionada.BobinaId);
+
+                if (vigente is null)
+                {
+                    LimpiarSeleccion();
+                }
+                else
+                {
+                    _seleccionada = vigente;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private async Task SeleccionarAsync(BobinaResumen bobina)
+    {
+        if (_seleccionada?.BobinaId == bobina.BobinaId)
+        {
+            return;
+        }
+
+        _seleccionada = bobina;
+        _confirmacion = null;
+        _error = null;
+        _aviso = null;
+
+        await CargarDetalleBobinaAsync();
+    }
+
+    private async Task CargarDetalleBobinaAsync()
+    {
+        if (_seleccionada is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var todos = await Parametros.ListarAsync(
+                RegistroId, AmbitoParametro.Bobina, _seleccionada.BobinaId);
+
+            _mediciones = todos
+                .Where(p => p.Orden >= OrdenPrimerParametroDeProducto)
+                .ToList();
+
+            _valores.Clear();
+            foreach (var medicion in _mediciones)
+            {
+                _valores[medicion.ParametroId] = medicion.ValorRegistrado;
+            }
+
+            _checklist = await Bobinas.ObtenerChecklistAsync(_seleccionada.BobinaId);
+
+            _respuestas.Clear();
+            foreach (var item in _checklist)
+            {
+                _respuestas[item.ItemId] = item.Cumple;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private void NuevaBobina()
+    {
+        _edicion = new BobinaEntrada();
+        _error = null;
+        _aviso = null;
+    }
+
+    private void Editar(BobinaResumen bobina)
+    {
+        _edicion = new BobinaEntrada
+        {
+            BobinaId = bobina.BobinaId,
+            IdBobi = bobina.IdBobi,
+            Peso = bobina.Peso,
+            Metros = bobina.Metros,
+            Ancho = bobina.Ancho,
+            Fuelle = bobina.Fuelle,
+            Calibre = bobina.Calibre,
+            LoteId = bobina.LoteId
+        };
+        _error = null;
+        _aviso = null;
+    }
+
+    private async Task GuardarBobinaAsync()
+    {
+        if (_edicion is null)
+        {
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            var (bobinaId, idBobi) = await Bobinas.GuardarAsync(RegistroId, _edicion);
+            _aviso = $"Bobina {idBobi} guardada.";
+            _edicion = null;
+
+            await CargarAsync();
+
+            var guardada = _produccion.Bobinas.FirstOrDefault(b => b.BobinaId == bobinaId);
+            if (guardada is not null)
+            {
+                _seleccionada = guardada;
+                await CargarDetalleBobinaAsync();
+            }
+        });
+    }
+
+    private Task EliminarAsync(BobinaResumen bobina) =>
+        EjecutarAsync(async () =>
+        {
+            _produccion = await Bobinas.EliminarAsync(bobina.BobinaId);
+            if (_seleccionada?.BobinaId == bobina.BobinaId)
+            {
+                LimpiarSeleccion();
+            }
+
+            _aviso = $"Bobina {bobina.IdBobi} eliminada.";
+        });
+
+    private Task RetirarConfirmacionAsync(BobinaResumen bobina) =>
+        EjecutarAsync(async () =>
+        {
+            _produccion = await Bobinas.RetirarConfirmacionAsync(bobina.BobinaId);
+            _confirmacion = null;
+            _aviso = $"Se retiró la confirmación de la bobina {bobina.IdBobi}; ya puede corregirse.";
+
+            _seleccionada = _produccion.Bobinas.FirstOrDefault(b => b.BobinaId == bobina.BobinaId);
+            await CargarDetalleBobinaAsync();
+        });
+
+    private Task GuardarMedicionesAsync() =>
+        EjecutarAsync(async () =>
+        {
+            var valores = _valores.Select(v => new ValorParametro(v.Key, v.Value)).ToList();
+            var evaluacion = await Parametros.GuardarAsync(RegistroId, valores, _seleccionada!.BobinaId);
+
+            _aviso = evaluacion.HayDesviaciones
+                ? $"Mediciones guardadas. {evaluacion.FueraDeRango} fuera de la tolerancia de la ficha."
+                : "Mediciones guardadas y dentro de especificación.";
+
+            await CargarAsync();
+            await CargarDetalleBobinaAsync();
+        });
+
+    private Task GuardarChecklistAsync() =>
+        EjecutarAsync(async () =>
+        {
+            var respuestas = _respuestas
+                .Select(r => new RespuestaChecklist(r.Key, r.Value))
+                .ToList();
+
+            _checklist = await Bobinas.GuardarChecklistAsync(_seleccionada!.BobinaId, respuestas);
+            _aviso = "Checklist guardado.";
+
+            await CargarAsync();
+        });
+
+    private Task ConfirmarAsync() =>
+        EjecutarAsync(async () =>
+        {
+            _confirmacion = await Bobinas.ConfirmarAsync(_seleccionada!.BobinaId);
+            _aviso = null;
+
+            await CargarAsync();
+            await CargarDetalleBobinaAsync();
+        });
+
+    /// <summary>
+    /// Envoltura común: limpia mensajes, marca el guardado en curso, traduce el
+    /// error de negocio y avisa al contenedor de que los contadores cambiaron.
+    /// </summary>
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        _guardando = true;
+        _error = null;
+
+        try
+        {
+            await accion();
+            await OnCambio.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void CambiarValor(int parametroId, ChangeEventArgs e) =>
+        _valores[parametroId] = decimal.TryParse(e.Value?.ToString(), out var valor) ? valor : null;
+
+    private void CambiarRespuesta(int itemId, ChangeEventArgs e) =>
+        _respuestas[itemId] = e.Value is true;
+
+    private void LimpiarSeleccion()
+    {
+        _seleccionada = null;
+        _confirmacion = null;
+        _mediciones = [];
+        _checklist = [];
+        _valores.Clear();
+        _respuestas.Clear();
+    }
+
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "—";
+}

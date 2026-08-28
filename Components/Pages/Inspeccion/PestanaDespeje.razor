@@ -1,0 +1,273 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@inject IRegistroInspeccionService Registros
+
+<div class="despeje">
+    @if (_error is not null)
+    {
+        <p class="despeje__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="despeje__aviso" role="status">@_aviso</p>
+    }
+
+    @* ================= Checklist de despeje de línea ================= *@
+    <section class="bloque">
+        <div class="bloque__encabezado">
+            <h4 class="bloque__titulo">Despeje de línea</h4>
+            <span class="avance">
+                @_checklist.Avance.ItemsCumplidos de @_checklist.Avance.ItemsTotal cumplidos
+            </span>
+        </div>
+
+        <div class="barra" role="progressbar"
+             aria-valuenow="@_checklist.Avance.PorcentajeCumplido" aria-valuemin="0" aria-valuemax="100">
+            <div class="barra__relleno @(_checklist.Avance.Completo ? "barra__relleno--completo" : null)"
+                 style="width:@(_checklist.Avance.PorcentajeCumplido)%"></div>
+        </div>
+
+        @if (_checklist.Items.Count == 0)
+        {
+            <p class="despeje__vacio">
+                No hay ítems de despeje definidos en el catálogo para esta área.
+            </p>
+        }
+        else
+        {
+            <ul class="checklist">
+                @foreach (var item in _checklist.Items)
+                {
+                    <li class="checklist__item">
+                        <label>
+                            <input type="checkbox"
+                                   disabled="@(!EsEditable)"
+                                   checked="@_respuestas[item.ItemId]"
+                                   @onchange="e => CambiarRespuesta(item.ItemId, e)" />
+                            <span class="checklist__codigo">@item.ItemCodigo</span>
+                            <span>@item.Texto</span>
+                        </label>
+                    </li>
+                }
+            </ul>
+
+            @if (EsEditable)
+            {
+                <div class="despeje__acciones">
+                    <button type="button" class="boton boton--primario"
+                            disabled="@_guardando" @onclick="GuardarAsync">
+                        @(_guardando ? "Guardando…" : "Guardar despeje")
+                    </button>
+                    <button type="button" class="boton boton--fantasma"
+                            disabled="@_guardando" @onclick="MarcarTodo">
+                        Marcar todos
+                    </button>
+                </div>
+            }
+        }
+    </section>
+
+    @* ================= Validación previa a la liberación ================= *@
+    <section class="bloque">
+        <div class="bloque__encabezado">
+            <h4 class="bloque__titulo">Verificación previa a la liberación</h4>
+            <button type="button" class="boton boton--fantasma"
+                    disabled="@_validando" @onclick="ValidarAsync">
+                @(_validando ? "Verificando…" : "Verificar")
+            </button>
+        </div>
+
+        @if (_validacion is null)
+        {
+            <p class="despeje__vacio">
+                Ejecute la verificación para saber qué falta antes de liberar el producto.
+            </p>
+        }
+        else
+        {
+            <div class="veredicto @(_validacion.ListoParaLiberar ? "veredicto--ok" : "veredicto--bloqueado")">
+                @if (_validacion.ListoParaLiberar)
+                {
+                    <strong>El registro está completo.</strong>
+                    <span>Ingeniería de Calidad puede liberar el producto.</span>
+                }
+                else
+                {
+                    <strong>No se puede liberar todavía.</strong>
+                    <span>
+                        @_validacion.TotalBloqueantes punto(s) pendiente(s)
+                        @if (_validacion.TotalAdvertencias > 0)
+                        {
+                            <text>y @_validacion.TotalAdvertencias advertencia(s)</text>
+                        }.
+                    </span>
+                }
+            </div>
+
+            @if (_validacion.Hallazgos.Count > 0)
+            {
+                <ul class="hallazgos">
+                    @foreach (var hallazgo in _validacion.Hallazgos)
+                    {
+                        <li class="hallazgo hallazgo--@(hallazgo.EsBloqueante ? "bloqueante" : "advertencia")">
+                            <span class="hallazgo__severidad">
+                                @(hallazgo.EsBloqueante ? "Bloqueante" : "Advertencia")
+                            </span>
+                            <span class="hallazgo__seccion">@hallazgo.Seccion</span>
+                            <span class="hallazgo__mensaje">
+                                @hallazgo.Mensaje
+                                @if (hallazgo.Cantidad is { } cantidad)
+                                {
+                                    <text> (@cantidad)</text>
+                                }
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+
+        @if (DespejeLiberado)
+        {
+            <p class="despeje__liberado">
+                Despeje liberado por @DespejeLiberadoPor
+                @if (DespejeFechaLiberacion is { } fecha)
+                {
+                    <text> el @fecha.ToString("dd/MM/yyyy HH:mm")</text>
+                }.
+            </p>
+        }
+        else
+        {
+            <p class="despeje__nota">
+                La firma de liberación y el certificado por lote corresponden al módulo de Calidad.
+            </p>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int RegistroId { get; set; }
+    [Parameter] public bool EsEditable { get; set; }
+    [Parameter] public EventCallback OnCambio { get; set; }
+    [Parameter] public bool DespejeLiberado { get; set; }
+    [Parameter] public string? DespejeLiberadoPor { get; set; }
+    [Parameter] public DateTime? DespejeFechaLiberacion { get; set; }
+
+    private Checklist _checklist = new();
+    private readonly Dictionary<int, bool> _respuestas = [];
+    private ValidacionCompletitud? _validacion;
+
+    private string? _error;
+    private string? _aviso;
+    private bool _guardando;
+    private bool _validando;
+    private int _registroCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_registroCargado == RegistroId)
+        {
+            return;
+        }
+
+        _registroCargado = RegistroId;
+        _validacion = null;
+        _error = null;
+        _aviso = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            _checklist = await Registros.ObtenerChecklistAsync(RegistroId);
+            SincronizarRespuestas();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private void SincronizarRespuestas()
+    {
+        _respuestas.Clear();
+        foreach (var item in _checklist.Items)
+        {
+            _respuestas[item.ItemId] = item.Cumple;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var respuestas = _respuestas
+                .Select(r => new RespuestaChecklist(r.Key, r.Value))
+                .ToList();
+
+            _checklist = await Registros.GuardarChecklistAsync(RegistroId, respuestas);
+            SincronizarRespuestas();
+
+            _aviso = _checklist.Avance.Completo
+                ? "Despeje completo."
+                : $"Despeje guardado: {_checklist.Avance.ItemsCumplidos} de {_checklist.Avance.ItemsTotal} cumplidos.";
+
+            // Lo guardado cambia el resultado de la verificación anterior.
+            _validacion = null;
+
+            await OnCambio.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task ValidarAsync()
+    {
+        _validando = true;
+        _error = null;
+
+        try
+        {
+            _validacion = await Registros.ValidarCompletitudAsync(RegistroId);
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _validando = false;
+        }
+    }
+
+    private void MarcarTodo()
+    {
+        foreach (var item in _checklist.Items)
+        {
+            _respuestas[item.ItemId] = true;
+        }
+    }
+
+    private void CambiarRespuesta(int itemId, ChangeEventArgs e) =>
+        _respuestas[itemId] = e.Value is true;
+
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

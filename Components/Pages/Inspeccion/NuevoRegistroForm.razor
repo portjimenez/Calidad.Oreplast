@@ -1,0 +1,300 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@inject IRegistroInspeccionService Registros
+@inject ICatalogoInspeccionService Catalogos
+
+<div class="nuevo">
+    @if (_error is not null)
+    {
+        <p class="nuevo__error" role="alert">@_error</p>
+    }
+
+    @* ---- Paso 1: elegir la orden ---- *@
+    <section class="nuevo__paso">
+        <h4 class="nuevo__titulo">1. Orden de producción</h4>
+
+        @if (_orden is null)
+        {
+            <div class="nuevo__busqueda">
+                <input type="search" placeholder="Número de OP, código de producto o cliente…"
+                       @bind="_busqueda" @bind:event="oninput"
+                       @onkeydown="BuscarConEnter" />
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_buscando" @onclick="BuscarAsync">
+                    @(_buscando ? "Buscando…" : "Buscar")
+                </button>
+            </div>
+
+            @if (_ordenes.Count > 0)
+            {
+                <table class="tabla-ordenes">
+                    <thead>
+                        <tr>
+                            <th>Orden</th>
+                            <th>Cliente</th>
+                            <th>Producto</th>
+                            <th class="num">Kg</th>
+                            <th>Registros</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var orden in _ordenes)
+                        {
+                            <tr>
+                                <td>@orden.NumeroOP</td>
+                                <td>@orden.ClienteNombre</td>
+                                <td title="@orden.ProductoNombre">
+                                    @orden.ProductoCodigo
+                                    @if (!orden.ProductoConFicha)
+                                    {
+                                        <span class="sin-ficha" title="El producto no tiene ficha técnica vigente: los parámetros no se podrán comparar.">sin ficha</span>
+                                    }
+                                </td>
+                                <td class="num">@orden.KgProgramados?.ToString("0.###")</td>
+                                <td>@orden.RegistrosExistentes</td>
+                                <td>
+                                    <button type="button" class="enlace"
+                                            @onclick="() => ElegirOrden(orden)">Elegir</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_buscado)
+            {
+                <p class="nuevo__vacio">Ninguna orden abierta coincide con la búsqueda.</p>
+            }
+        }
+        else
+        {
+            <div class="orden-elegida">
+                <div>
+                    <strong>@_orden.NumeroOP</strong> · @_orden.ClienteNombre ·
+                    @_orden.ProductoCodigo
+                    @if (!_orden.ProductoConFicha)
+                    {
+                        <span class="sin-ficha">sin ficha técnica</span>
+                    }
+                </div>
+                <button type="button" class="enlace" @onclick="CambiarOrden">Cambiar</button>
+            </div>
+        }
+    </section>
+
+    @* ---- Paso 2: datos del registro ---- *@
+    @if (_orden is not null)
+    {
+        <section class="nuevo__paso">
+            <h4 class="nuevo__titulo">2. Datos del registro</h4>
+
+            <div class="campos">
+                <label>Tipo de registro
+                    <select @onchange="CambiarTipo" value="@_tipoRegistroId">
+                        @foreach (var tipo in _catalogos.TiposRegistro)
+                        {
+                            <option value="@tipo.TipoRegistroId">@tipo.Codigo — @tipo.Nombre</option>
+                        }
+                    </select>
+                </label>
+                <label>Máquina
+                    <select value="@_maquinaId" @onchange="e => _maquinaId = LeerEntero(e)">
+                        <option value="0">— Seleccione —</option>
+                        @foreach (var maquina in _catalogos.MaquinasDe(_areaId))
+                        {
+                            <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+                <label>Fecha
+                    <input type="date" @bind="_fecha" @bind:format="yyyy-MM-dd" />
+                </label>
+                <label>Turno
+                    <select value="@_turnoId" @onchange="e => _turnoId = LeerEntero(e)">
+                        <option value="0">— Seleccione —</option>
+                        @foreach (var turno in _catalogos.Turnos)
+                        {
+                            <option value="@turno.TurnoId">@turno.Nombre</option>
+                        }
+                    </select>
+                </label>
+                <label>Operador
+                    <select value="@_operadorId" @onchange="e => _operadorId = LeerEntero(e)">
+                        <option value="0">— Seleccione —</option>
+                        @foreach (var operador in _catalogos.Operadores)
+                        {
+                            <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+                <label>Hora de inicio
+                    <input type="datetime-local" @bind="_inicio" @bind:format="yyyy-MM-ddTHH:mm" />
+                </label>
+                <label>Tipo de corrida
+                    <select value="@_clasificacion" @onchange="CambiarClasificacion">
+                        <option value="P">Producción</option>
+                        <option value="S">Setup</option>
+                    </select>
+                </label>
+            </div>
+
+            <p class="nuevo__nota">
+                El ID del registro lo genera el sistema con el número de orden, el tipo de
+                corrida y un correlativo (por ejemplo @_orden.NumeroOP-@_clasificacion-00@(_orden.RegistrosExistentes + 1)).
+            </p>
+
+            <div class="nuevo__acciones">
+                <button type="button" class="boton boton--primario"
+                        disabled="@(_creando || !FormularioCompleto)" @onclick="CrearAsync">
+                    @(_creando ? "Abriendo…" : "Abrir registro")
+                </button>
+                <button type="button" class="boton boton--fantasma" @onclick="OnCancelar">
+                    Cancelar
+                </button>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    /// <summary>Se avisa con el registro recién creado para abrirlo en el detalle.</summary>
+    [Parameter] public EventCallback<int> OnCreado { get; set; }
+
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private CatalogosInspeccion _catalogos = new();
+    private List<OrdenBusqueda> _ordenes = [];
+    private OrdenBusqueda? _orden;
+
+    private string? _busqueda;
+    private bool _buscando;
+    private bool _buscado;
+    private bool _creando;
+    private string? _error;
+
+    private int _tipoRegistroId;
+    private int _areaId;
+    private int _maquinaId;
+    private int _turnoId;
+    private int _operadorId;
+    private string _clasificacion = "P";
+    private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Now);
+    private DateTime _inicio = DateTime.Now;
+
+    private bool FormularioCompleto =>
+        _orden is not null && _tipoRegistroId > 0 && _maquinaId > 0 && _turnoId > 0 && _operadorId > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _catalogos = await Catalogos.ObtenerAsync();
+
+            var tipo = _catalogos.TiposRegistro.FirstOrDefault();
+            if (tipo is not null)
+            {
+                _tipoRegistroId = tipo.TipoRegistroId;
+                _areaId = tipo.AreaId;
+            }
+
+            _turnoId = _catalogos.Turnos.FirstOrDefault()?.TurnoId ?? 0;
+            _operadorId = _catalogos.Operadores.FirstOrDefault()?.UsuarioId ?? 0;
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private async Task BuscarAsync()
+    {
+        _buscando = true;
+        _error = null;
+
+        try
+        {
+            _ordenes = await Registros.BuscarOrdenesAsync(_busqueda);
+            _buscado = true;
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _buscando = false;
+        }
+    }
+
+    private Task BuscarConEnter(KeyboardEventArgs e) =>
+        e.Key == "Enter" ? BuscarAsync() : Task.CompletedTask;
+
+    private void ElegirOrden(OrdenBusqueda orden)
+    {
+        _orden = orden;
+        _error = null;
+    }
+
+    private void CambiarOrden()
+    {
+        _orden = null;
+        _error = null;
+    }
+
+    /// <summary>
+    /// El tipo de registro fija el área, y el área acota las máquinas: una
+    /// máquina de otra área la rechazaría la base (error 50014).
+    /// </summary>
+    private void CambiarTipo(ChangeEventArgs e)
+    {
+        _tipoRegistroId = LeerEntero(e);
+        _areaId = _catalogos.TiposRegistro
+            .FirstOrDefault(t => t.TipoRegistroId == _tipoRegistroId)?.AreaId ?? 0;
+        _maquinaId = 0;
+    }
+
+    private async Task CrearAsync()
+    {
+        if (_orden is null)
+        {
+            return;
+        }
+
+        _creando = true;
+        _error = null;
+
+        try
+        {
+            var (registroId, _) = await Registros.CrearAsync(new NuevoRegistro(
+                _orden.OrdenId, _tipoRegistroId, _fecha, _turnoId, _operadorId, _maquinaId,
+                _clasificacion, _inicio));
+
+            await OnCreado.InvokeAsync(registroId);
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _creando = false;
+        }
+    }
+
+    private void CambiarClasificacion(ChangeEventArgs e)
+    {
+        var valor = e.Value?.ToString();
+        _clasificacion = string.IsNullOrEmpty(valor) ? "P" : valor;
+    }
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

@@ -1,33 +1,67 @@
 @page "/inspeccion-en-proceso"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@attribute [Authorize(Policy = "VER_ORDENES")]
+@inject IRegistroInspeccionService Registros
+@inject IParametroService Parametros
+@inject ICatalogoInspeccionService Catalogos
 
 <PageTitle>Inspección en proceso</PageTitle>
 
 <MaestroDetalle>
     <Maestro>
         <PanelCard Titulo="Registros">
+            <div class="filtros">
+                <input type="search"
+                       class="filtros__busqueda"
+                       placeholder="Orden o ID de registro…"
+                       value="@_filtro.Busqueda"
+                       @onchange="BuscarAsync" />
+                <label class="filtros__check">
+                    <input type="checkbox"
+                           checked="@_filtro.SoloAbiertos"
+                           @onchange="CambiarSoloAbiertosAsync" />
+                    Solo abiertos
+                </label>
+                <AuthorizeView Policy="REGISTRAR_INSPECCION" Context="alta">
+                    <button type="button" class="boton boton--primario filtros__nuevo"
+                            @onclick="AbrirNuevoRegistro">
+                        Nuevo registro
+                    </button>
+                </AuthorizeView>
+            </div>
+
             <table class="tabla-maestro">
                 <thead>
                     <tr>
                         <th>Orden</th>
                         <th>Máquina</th>
                         <th>Tipo</th>
+                        <th>Estado</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @if (_registros.Count == 0)
+                    @if (_cargandoLista)
                     {
-                        <tr>
-                            <td colspan="3" class="tabla-maestro__vacio">Sin registros disponibles.</td>
-                        </tr>
+                        <tr><td colspan="4" class="tabla-maestro__vacio">Cargando registros…</td></tr>
+                    }
+                    else if (_registros.Count == 0)
+                    {
+                        <tr><td colspan="4" class="tabla-maestro__vacio">Sin registros que coincidan.</td></tr>
                     }
                     else
                     {
                         @foreach (var registro in _registros)
                         {
-                            <tr class="@ClaseFila(registro)" @onclick="() => _registroSeleccionado = registro">
-                                <td>@registro.Orden</td>
-                                <td>@registro.Maquina</td>
-                                <td>@registro.Tipo</td>
+                            <tr class="@ClaseFila(registro)" @onclick="() => SeleccionarAsync(registro)">
+                                <td>@registro.NumeroOP</td>
+                                <td>@registro.MaquinaCodigo</td>
+                                <td>@TextoClasificacion(registro)</td>
+                                <td>
+                                    <EstadoChip Texto="@TextoTolerancia(registro)"
+                                                Tono="@TonoTolerancia(registro)" />
+                                </td>
                             </tr>
                         }
                     }
@@ -36,125 +70,575 @@
         </PanelCard>
     </Maestro>
     <Detalle>
-        <PanelCard Titulo="@TituloDetalle" Cerrable="true">
+        <PanelCard Titulo="@TituloDetalle">
             <div class="detalle-inspeccion">
-                <p class="detalle-inspeccion__rolebar">
-                    ● Modo Calidad · puede verificar, registrar no conformidades y liberar el producto.
-                </p>
+                @if (_error is not null)
+                {
+                    <p class="detalle-inspeccion__error" role="alert">@_error</p>
+                }
 
-                <TabStrip Pestanas="_pestanas" @bind-PestanaActiva="_pestanaActiva" />
+                <p class="detalle-inspeccion__rolebar">● @DescripcionModo</p>
 
-                <div class="detalle-inspeccion__cuerpo">
-                    @if (_pestanaActiva == "registro" && _registroSeleccionado is not null)
-                    {
-                        var r = _registroSeleccionado;
-                        <div class="detalle-inspeccion__form">
-                            <div class="campo campo--solo-lectura">
-                                <label>Orden de producción</label>
-                                <div class="campo-valor">@r.Orden</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Registro ID</label>
-                                <div class="campo-valor">@r.RegistroId</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Lote</label>
-                                <div class="campo-valor">@r.Lote</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Producto</label>
-                                <div class="campo-valor">@r.Producto</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Cliente</label>
-                                <div class="campo-valor">@r.Cliente</div>
-                            </div>
-                            <div class="campo campo--editable">
-                                <label>Fecha</label>
-                                <div class="campo-valor">@r.Fecha.ToString("dd/MM/yyyy")</div>
-                            </div>
-                            <div class="campo campo--editable">
-                                <label>Turno</label>
-                                <div class="campo-valor">@r.Turno</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Máquina</label>
-                                <div class="campo-valor">@r.Maquina</div>
-                            </div>
-                            <div class="campo campo--solo-lectura">
-                                <label>Operador</label>
-                                <div class="campo-valor">@r.Operador</div>
-                            </div>
-                            <div class="campo campo--chip">
-                                <label>Estado</label>
-                                <div class="campo-valor">
-                                    <EstadoChip Texto="@r.EstadoToleranciaTexto" Tono="@r.EstadoToleranciaTono" />
-                                    <EstadoChip Texto="@r.EstadoProcesoTexto" Tono="@r.EstadoProcesoTono" />
+                @if (_modoNuevo)
+                {
+                    <NuevoRegistroForm OnCreado="RegistroCreadoAsync" OnCancelar="CancelarNuevo" />
+                }
+                else if (_detalle is null)
+                {
+                    <div class="detalle-inspeccion__cuerpo">
+                        <p class="detalle-inspeccion__placeholder">
+                            @(_cargandoDetalle
+                                ? "Cargando el registro…"
+                                : "Seleccione un registro de la lista para ver su detalle.")
+                        </p>
+                    </div>
+                }
+                else
+                {
+                    <TabStrip Pestanas="_pestanas" @bind-PestanaActiva="_pestanaActiva" />
+
+                    <div class="detalle-inspeccion__cuerpo">
+                        @if (_pestanaActiva == "registro")
+                        {
+                            <div class="detalle-inspeccion__form">
+                                <div class="campo campo--solo-lectura">
+                                    <label>Orden de producción</label>
+                                    <div class="campo-valor">@_detalle.NumeroOP</div>
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Registro ID</label>
+                                    <div class="campo-valor">@_detalle.IdRegistro</div>
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Lote</label>
+                                    <div class="campo-valor">@TextoLotes</div>
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Producto</label>
+                                    <div class="campo-valor" title="@_detalle.ProductoNombre">
+                                        @_detalle.ProductoCodigo
+                                    </div>
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Cliente</label>
+                                    <div class="campo-valor">@_detalle.ClienteNombre</div>
+                                </div>
+                                <div class="campo @ClaseCampoEditable">
+                                    <label>Fecha</label>
+                                    @if (PuedeCapturar)
+                                    {
+                                        <input type="date" class="campo-entrada"
+                                               @bind="_edicion.Fecha" @bind:format="yyyy-MM-dd" />
+                                    }
+                                    else
+                                    {
+                                        <div class="campo-valor">@_detalle.Fecha.ToString("dd/MM/yyyy")</div>
+                                    }
+                                </div>
+                                <div class="campo @ClaseCampoEditable">
+                                    <label>Turno</label>
+                                    @if (PuedeCapturar)
+                                    {
+                                        <select class="campo-entrada" value="@_edicion.TurnoId"
+                                                @onchange="e => _edicion.TurnoId = LeerEntero(e)">
+                                            @foreach (var turno in _catalogos.Turnos)
+                                            {
+                                                <option value="@turno.TurnoId">@turno.Nombre</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <div class="campo-valor">@_detalle.TurnoNombre</div>
+                                    }
+                                </div>
+                                <div class="campo @ClaseCampoEditable">
+                                    <label>Máquina</label>
+                                    @if (PuedeCapturar)
+                                    {
+                                        <select class="campo-entrada" value="@_edicion.MaquinaId"
+                                                @onchange="e => _edicion.MaquinaId = LeerEntero(e)">
+                                            @foreach (var maquina in _catalogos.MaquinasDe(_detalle.AreaId))
+                                            {
+                                                <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <div class="campo-valor">@_detalle.MaquinaCodigo — @_detalle.MaquinaNombre</div>
+                                    }
+                                </div>
+                                <div class="campo @ClaseCampoEditable">
+                                    <label>Operador</label>
+                                    @if (PuedeCapturar)
+                                    {
+                                        <select class="campo-entrada" value="@_edicion.OperadorId"
+                                                @onchange="e => _edicion.OperadorId = LeerEntero(e)">
+                                            @foreach (var operador in _catalogos.Operadores)
+                                            {
+                                                <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <div class="campo-valor">@_detalle.OperadorNombre</div>
+                                    }
+                                </div>
+                                <div class="campo @ClaseCampoEditable">
+                                    <label>Hora de inicio</label>
+                                    @if (PuedeCapturar)
+                                    {
+                                        <input type="datetime-local" class="campo-entrada"
+                                               @bind="_edicion.FechaHoraInicio" @bind:format="yyyy-MM-ddTHH:mm" />
+                                    }
+                                    else
+                                    {
+                                        <div class="campo-valor">
+                                            @(_detalle.FechaHoraInicio?.ToString("dd/MM/yyyy HH:mm") ?? "—")
+                                        </div>
+                                    }
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Formato</label>
+                                    <div class="campo-valor">@_detalle.FormatoCodigo</div>
+                                </div>
+                                <div class="campo campo--solo-lectura">
+                                    <label>Ficha técnica</label>
+                                    <div class="campo-valor">@TextoFicha</div>
+                                </div>
+                                <div class="campo campo--chip">
+                                    <label>Estado</label>
+                                    <div class="campo-valor">
+                                        <EstadoChip Texto="@TextoEstadoProceso" Tono="@TonoEstadoProceso" />
+                                        @if (_seleccionado is not null)
+                                        {
+                                            <EstadoChip Texto="@TextoTolerancia(_seleccionado)"
+                                                        Tono="@TonoTolerancia(_seleccionado)" />
+                                        }
+                                        @if (!_detalle.EsEditable)
+                                        {
+                                            <EstadoChip Texto="Bloqueado" Tono="TonoChip.Neutro" />
+                                        }
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="detalle-inspeccion__placeholder">
-                            Contenido de "@TextoPestana(_pestanaActiva)" — pendiente de implementar en el Módulo 2.
-                        </p>
-                    }
-                </div>
 
-                <div class="detalle-inspeccion__botonera">
-                    <button type="button" class="boton boton--primario">Guardar</button>
-                    <button type="button" class="boton boton--fantasma">Ver resumen</button>
-                    <button type="button" class="boton boton--primario">Liberar producto</button>
-                    <button type="button" class="boton boton--enlace-peligro">Registrar no conformidad</button>
-                </div>
+                            @if (PuedeCapturar)
+                            {
+                                <div class="encabezado-acciones">
+                                    <button type="button" class="boton boton--primario"
+                                            disabled="@_guardandoEncabezado" @onclick="GuardarEncabezadoAsync">
+                                        @(_guardandoEncabezado ? "Guardando…" : "Guardar encabezado")
+                                    </button>
+                                    @if (_avisoEncabezado is not null)
+                                    {
+                                        <span class="encabezado-aviso">@_avisoEncabezado</span>
+                                    }
+                                </div>
+                            }
+                        }
+                        else if (_pestanaActiva == "especificaciones")
+                        {
+                            <PestanaEspecificaciones RegistroId="_detalle.RegistroId"
+                                                     EsEditable="@PuedeCapturar"
+                                                     OnCambio="RefrescarContadoresAsync" />
+                        }
+                        else if (_pestanaActiva == "setup")
+                        {
+                            <PestanaSetupProduccion RegistroId="_detalle.RegistroId"
+                                                    AreaId="_detalle.AreaId"
+                                                    EsEditable="@PuedeCapturar"
+                                                    OnCambio="RefrescarContadoresAsync" />
+                        }
+                        else if (_pestanaActiva == "bobinas")
+                        {
+                            <PestanaBobinas RegistroId="_detalle.RegistroId"
+                                            EsEditable="@PuedeCapturar"
+                                            OnCambio="RefrescarContadoresAsync" />
+                        }
+                        else if (_pestanaActiva == "despeje")
+                        {
+                            <PestanaDespeje RegistroId="_detalle.RegistroId"
+                                            EsEditable="@(_detalle.EsEditable && _puedeDespejar)"
+                                            DespejeLiberado="_detalle.DespejeLiberado"
+                                            DespejeLiberadoPor="_detalle.DespejeLiberadoPor"
+                                            DespejeFechaLiberacion="_detalle.DespejeFechaLiberacion"
+                                            OnCambio="RefrescarContadoresAsync" />
+                        }
+                    </div>
+
+                    <div class="detalle-inspeccion__botonera">
+                        <span class="detalle-inspeccion__pista">
+                            La verificación previa a liberar está en la pestaña «Despeje / Liberación».
+                        </span>
+                        <AuthorizeView Policy="LIBERAR_PRODUCTO" Context="calidad">
+                            <button type="button" class="boton boton--primario" disabled
+                                    title="La liberación se implementa en el Módulo 3 (Calidad).">
+                                Liberar producto
+                            </button>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="REGISTRAR_NOCONFORMIDAD" Context="nc">
+                            <button type="button" class="boton boton--enlace-peligro" disabled
+                                    title="Las no conformidades se implementan en el Módulo 3 (Calidad).">
+                                Registrar no conformidad
+                            </button>
+                        </AuthorizeView>
+                    </div>
+                }
             </div>
         </PanelCard>
     </Detalle>
 </MaestroDetalle>
 
 @code {
-    private sealed record RegistroInspeccion(
-        string Orden,
-        string RegistroId,
-        string Lote,
-        string Producto,
-        string Cliente,
-        DateOnly Fecha,
-        string Turno,
-        string Maquina,
-        string Operador,
-        string Tipo,
-        string EstadoToleranciaTexto,
-        TonoChip EstadoToleranciaTono,
-        string EstadoProcesoTexto,
-        TonoChip EstadoProcesoTono);
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
-    private readonly List<RegistroInspeccion> _registros = new();
+    /// <summary>
+    /// Permite abrir un registro concreto con /inspeccion-en-proceso?registro=464,
+    /// para poder enlazar desde una alerta o desde el panel de calidad.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "registro")]
+    public int? RegistroSolicitado { get; set; }
 
-    private readonly List<TabItem> _pestanas = new()
-    {
+    /// <summary>Pestaña inicial, para enlazar directo a una sección concreta.</summary>
+    [SupplyParameterFromQuery(Name = "pestana")]
+    public string? PestanaSolicitada { get; set; }
+
+    private readonly List<TabItem> _pestanas =
+    [
         new("registro", "Registro"),
         new("especificaciones", "Especificaciones"),
+        // El formato REEX tiene secciones de setup y de producción que el
+        // mockup no contemplaba; van juntas porque comparten estructura
+        // (horas, tiempo muerto y desperdicio) y se capturan seguidas.
+        new("setup", "Setup y producción"),
         new("bobinas", "Bobinas"),
-        new("despeje", "Despeje / Liberación"),
-    };
+        new("despeje", "Despeje / Liberación")
+    ];
 
-    private RegistroInspeccion? _registroSeleccionado;
+    private readonly FiltroRegistros _filtro = new() { MaxFilas = 100 };
+
+    private List<RegistroResumen> _registros = [];
+    private RegistroResumen? _seleccionado;
+    private RegistroDetalle? _detalle;
+    private FichaAplicable? _ficha;
+    private CatalogosInspeccion _catalogos = new();
+
+    /// <summary>Copia editable del encabezado: no se toca el detalle hasta guardar.</summary>
+    private EdicionEncabezado _edicion = new();
+
+    private bool _modoNuevo;
+    private bool _guardandoEncabezado;
+    private string? _avisoEncabezado;
+
     private string _pestanaActiva = "registro";
+    private string? _error;
+    private bool _cargandoLista;
+    private bool _cargandoDetalle;
+    private bool _puedeRegistrar;
+    private bool _puedeLiberar;
+    private bool _puedeDespejar;
+    private int _areaCatalogos;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        _registroSeleccionado = _registros.FirstOrDefault();
+        if (EstadoAutenticacion is not null)
+        {
+            var estado = await EstadoAutenticacion;
+            _puedeRegistrar = estado.User.HasClaim("permiso", "REGISTRAR_INSPECCION");
+            _puedeLiberar = estado.User.HasClaim("permiso", "LIBERAR_PRODUCTO");
+            _puedeDespejar = estado.User.HasClaim("permiso", "REALIZAR_DESPEJE");
+        }
+
+        if (PestanaSolicitada is { Length: > 0 } pestana
+            && _pestanas.Any(p => p.Clave == pestana))
+        {
+            _pestanaActiva = pestana;
+        }
+
+        await CargarListaAsync();
+
+        if (RegistroSolicitado is { } registroId)
+        {
+            var solicitado = _registros.FirstOrDefault(r => r.RegistroId == registroId);
+            if (solicitado is not null)
+            {
+                await SeleccionarAsync(solicitado);
+            }
+        }
     }
 
-    private string TituloDetalle =>
-        _registroSeleccionado is null
-            ? "Inspección en proceso"
-            : $"Inspección en proceso — {_registroSeleccionado.Orden}";
+    private async Task CargarListaAsync()
+    {
+        _cargandoLista = true;
+        _error = null;
 
-    private string ClaseFila(RegistroInspeccion registro) =>
-        registro == _registroSeleccionado ? "tabla-maestro__fila--seleccionada" : string.Empty;
+        try
+        {
+            _registros = await Registros.ListarAsync(_filtro);
+
+            // Si el registro abierto ya no está en la lista filtrada, se cierra el detalle.
+            if (_seleccionado is not null && _registros.All(r => r.RegistroId != _seleccionado.RegistroId))
+            {
+                LimpiarDetalle();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _cargandoLista = false;
+        }
+    }
+
+    private async Task SeleccionarAsync(RegistroResumen registro)
+    {
+        if (_seleccionado?.RegistroId == registro.RegistroId)
+        {
+            return;
+        }
+
+        _seleccionado = registro;
+        _modoNuevo = false;
+        _avisoEncabezado = null;
+        _cargandoDetalle = true;
+        _error = null;
+
+        try
+        {
+            _detalle = await Registros.ObtenerAsync(registro.RegistroId);
+            _ficha = await Parametros.ObtenerFichaAplicableAsync(registro.RegistroId);
+
+            if (_detalle is not null)
+            {
+                _edicion = EdicionEncabezado.Desde(_detalle);
+
+                // Los operadores se acotan al área del registro, así que el
+                // catálogo se recarga cuando el área cambia.
+                if (_catalogos.Turnos.Count == 0 || _areaCatalogos != _detalle.AreaId)
+                {
+                    _catalogos = await Catalogos.ObtenerAsync(_detalle.AreaId);
+                    _areaCatalogos = _detalle.AreaId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+            LimpiarDetalle();
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    private void AbrirNuevoRegistro()
+    {
+        _modoNuevo = true;
+        _error = null;
+        LimpiarDetalle();
+    }
+
+    private void CancelarNuevo() => _modoNuevo = false;
+
+    /// <summary>Tras crear el registro se abre directamente su detalle.</summary>
+    private async Task RegistroCreadoAsync(int registroId)
+    {
+        _modoNuevo = false;
+        _filtro.Busqueda = null;
+
+        await CargarListaAsync();
+
+        var creado = _registros.FirstOrDefault(r => r.RegistroId == registroId);
+        if (creado is not null)
+        {
+            await SeleccionarAsync(creado);
+            _pestanaActiva = "registro";
+        }
+    }
+
+    private async Task GuardarEncabezadoAsync()
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        _guardandoEncabezado = true;
+        _avisoEncabezado = null;
+        _error = null;
+
+        try
+        {
+            await Registros.ActualizarEncabezadoAsync(
+                _detalle.RegistroId,
+                _edicion.Fecha,
+                _edicion.TurnoId,
+                _edicion.OperadorId,
+                _edicion.MaquinaId,
+                _edicion.FechaHoraInicio);
+
+            _detalle = await Registros.ObtenerAsync(_detalle.RegistroId) ?? _detalle;
+            _edicion = EdicionEncabezado.Desde(_detalle);
+            _avisoEncabezado = "Encabezado actualizado.";
+
+            await RefrescarContadoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _guardandoEncabezado = false;
+        }
+    }
+
+    /// <summary>
+    /// Tras guardar en una pestaña, los contadores del maestro (bobinas,
+    /// parámetros fuera de rango, alertas) quedan viejos: se recalculan en la
+    /// base, así que hay que volver a pedirlos. Si había una validación en
+    /// pantalla se descarta, porque ya no refleja el estado actual.
+    /// </summary>
+    private async Task RefrescarContadoresAsync()
+    {
+        if (_seleccionado is null)
+        {
+            return;
+        }
+
+        var seleccionadoId = _seleccionado.RegistroId;
+
+        await CargarListaAsync();
+
+        _seleccionado = _registros.FirstOrDefault(r => r.RegistroId == seleccionadoId) ?? _seleccionado;
+    }
+
+    private Task BuscarAsync(ChangeEventArgs e)
+    {
+        _filtro.Busqueda = e.Value?.ToString();
+        return CargarListaAsync();
+    }
+
+    private Task CambiarSoloAbiertosAsync(ChangeEventArgs e)
+    {
+        _filtro.SoloAbiertos = e.Value is true;
+        return CargarListaAsync();
+    }
+
+    private void LimpiarDetalle()
+    {
+        _seleccionado = null;
+        _detalle = null;
+        _ficha = null;
+    }
+
+    /// <summary>
+    /// Una regla de negocio rechazada por la base es un mensaje para el usuario;
+    /// cualquier otra excepción es un fallo del sistema y no se le muestra en crudo.
+    /// </summary>
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+
+    /// <summary>
+    /// Se puede capturar cuando el registro admite cambios y además el usuario
+    /// tiene el permiso. Las dos condiciones son distintas: un registro cerrado
+    /// no lo edita nadie, y un registro abierto solo lo edita quien registra.
+    /// </summary>
+    private bool PuedeCapturar => _detalle is { EsEditable: true } && _puedeRegistrar;
+
+    private string TituloDetalle =>
+        _detalle is null ? "Inspección en proceso" : $"Inspección en proceso — {_detalle.NumeroOP}";
+
+    private string DescripcionModo => (_puedeLiberar, _puedeRegistrar) switch
+    {
+        (true, _) => "Modo Calidad · puede verificar, registrar no conformidades y liberar el producto.",
+        (false, true) => "Modo Operador · puede registrar la inspección, el setup y la producción por bobina.",
+        _ => "Modo consulta · solo lectura."
+    };
+
+    private string TextoLotes =>
+        _detalle is null || _detalle.Lotes.Count == 0
+            ? "Sin lote asignado"
+            : string.Join(", ", _detalle.Lotes.Select(l => l.CodigoLote));
+
+    private string TextoFicha =>
+        _ficha is null ? "—"
+        : _ficha.TieneFicha ? $"{_ficha.FichaVersion} · {_ficha.Parametros.Count(p => p.TieneTolerancia)} parámetros con tolerancia"
+        : "El producto no tiene ficha vigente";
+
+    private string TextoEstadoProceso => _detalle?.Estado switch
+    {
+        EstadoRegistro.Pendiente => "Pendiente",
+        EstadoRegistro.EnProceso => "En proceso",
+        EstadoRegistro.Liberado => "Liberado",
+        EstadoRegistro.Cerrado => "Cerrado",
+        _ => "—"
+    };
+
+    private TonoChip TonoEstadoProceso => _detalle?.Estado switch
+    {
+        EstadoRegistro.Liberado => TonoChip.Exito,
+        EstadoRegistro.EnProceso => TonoChip.Advertencia,
+        _ => TonoChip.Neutro
+    };
+
+    private static string TextoTolerancia(RegistroResumen r) =>
+        r.ParametrosFueraDeRango > 0 ? "Fuera de tolerancia"
+        : r.AlertasPendientes > 0 ? "Alertas pendientes"
+        : "En tolerancia";
+
+    private static TonoChip TonoTolerancia(RegistroResumen r) =>
+        r.ParametrosFueraDeRango > 0 ? TonoChip.Peligro
+        : r.AlertasPendientes > 0 ? TonoChip.Advertencia
+        : TonoChip.Exito;
+
+    /// <summary>La letra del IdRegistro indica el tipo de corrida (P producción, S setup, D demostración).</summary>
+    private static string TextoClasificacion(RegistroResumen r) => r.Clasificacion switch
+    {
+        "P" => "Prod.",
+        "S" => "Setup",
+        "D" => "Demo",
+        var otra => otra
+    };
+
+    private string ClaseCampoEditable => PuedeCapturar ? "campo--editable" : "campo--solo-lectura";
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    /// <summary>
+    /// Valores del encabezado mientras se editan. Se trabaja sobre una copia
+    /// para que la pantalla no muestre cambios que la base todavía no aceptó.
+    /// </summary>
+    private sealed class EdicionEncabezado
+    {
+        public DateOnly Fecha { get; set; }
+        public int TurnoId { get; set; }
+        public int OperadorId { get; set; }
+        public int MaquinaId { get; set; }
+        public DateTime? FechaHoraInicio { get; set; }
+
+        public static EdicionEncabezado Desde(RegistroDetalle detalle) => new()
+        {
+            Fecha = detalle.Fecha,
+            TurnoId = detalle.TurnoId,
+            OperadorId = detalle.OperadorId,
+            MaquinaId = detalle.MaquinaId,
+            FechaHoraInicio = detalle.FechaHoraInicio
+        };
+    }
+
+    private string ClaseFila(RegistroResumen registro) =>
+        registro.RegistroId == _seleccionado?.RegistroId ? "tabla-maestro__fila--seleccionada" : string.Empty;
 
     private string TextoPestana(string clave) =>
         _pestanas.FirstOrDefault(p => p.Clave == clave)?.Texto ?? clave;

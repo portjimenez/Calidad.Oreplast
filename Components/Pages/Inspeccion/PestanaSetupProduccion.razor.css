@@ -1,0 +1,123 @@
+.setup-produccion {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.sp__error,
+.sp__aviso {
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.sp__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+}
+
+.sp__aviso {
+    background: var(--op-info-bg);
+    color: var(--op-info-fg);
+}
+
+.bloque__encabezado {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.bloque__titulo {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.bloque__estado {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.campos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 0.75rem;
+}
+
+.campos label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.campos input,
+.campos select {
+    width: 11rem;
+    padding: 0.32rem 0.45rem;
+    font-size: 0.78rem;
+    border: 1px solid #c2cccc;
+    border-radius: 3px;
+    background: #fff;
+}
+
+.campos input:disabled,
+.campos select:disabled {
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+}
+
+.campo--calculado .valor-calculado {
+    display: inline-block;
+    width: 11rem;
+    padding: 0.32rem 0.45rem;
+    font-size: 0.78rem;
+    border: 1px dashed #c2cccc;
+    border-radius: 3px;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    text-align: right;
+}
+
+.nota {
+    margin: 0.5rem 0 0.75rem;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Derivados de las bobinas ---- */
+.derivados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0.85rem 0;
+}
+
+.derivado {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--op-fondo);
+    border-left: 3px solid var(--op-azul);
+    min-width: 11rem;
+}
+
+.derivado__etiqueta {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.derivado__valor {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}

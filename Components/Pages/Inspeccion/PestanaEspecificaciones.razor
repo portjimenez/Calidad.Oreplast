@@ -1,0 +1,367 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Inspeccion
+@using calidad_app.Services.Inspeccion
+@inject IRegistroInspeccionService Registros
+@inject ICatalogoInspeccionService Catalogos
+
+<div class="especificaciones">
+    @if (_error is not null)
+    {
+        <p class="especificaciones__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="especificaciones__aviso" role="status">@_aviso</p>
+    }
+
+    @* ================= Especificaciones del proceso ================= *@
+    <section class="bloque">
+        <h4 class="bloque__titulo">Especificaciones del proceso</h4>
+
+        <div class="grupo">
+            <h5>Producción</h5>
+            <div class="grupo__campos">
+                <label>Kg a producir<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.KgAProducir" /></label>
+                <label>Ancho (mm)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.AnchoProduccionMm" /></label>
+                <label>Calibre (mic)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.CalibreProduccionMic" /></label>
+                <label>Fuelle (mm)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.Fuelle" /></label>
+                <label>Color<input type="text" disabled="@(!EsEditable)" @bind="_espec.Color" /></label>
+                <label>Tratado
+                    <select disabled="@(!EsEditable)" value="@Texto(_espec.Tratado)"
+                            @onchange="e => _espec.Tratado = Leer(e)">
+                        @foreach (var opcion in OpcionesBooleanas) { <option value="@opcion.Key">@opcion.Value</option> }
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="grupo">
+            <h5>Bobina</h5>
+            <div class="grupo__campos">
+                <label>Tipo de bobina<input type="text" disabled="@(!EsEditable)" @bind="_espec.TipoBobina" /></label>
+                <label>Bobinas por embobinador<input type="number" disabled="@(!EsEditable)" @bind="_espec.BobinasPorEmbobinador" /></label>
+                <label>Metros aprox.<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.MetrosAproxBobina" /></label>
+                <label>Kg aprox.<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.KgAproxBobina" /></label>
+            </div>
+        </div>
+
+        <div class="grupo">
+            <h5>Producto</h5>
+            <div class="grupo__campos">
+                <label>Ancho (mm)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.AnchoProductoMm" /></label>
+                <label>Largo (mm)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.LargoProductoMm" /></label>
+                <label>Calibre (mic)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.CalibreProductoMic" /></label>
+                <label>Tipo de material<input type="text" disabled="@(!EsEditable)" @bind="_espec.TipoMaterial" /></label>
+                <label>Tipo de sello<input type="text" disabled="@(!EsEditable)" @bind="_espec.TipoSello" /></label>
+                <label>Estructura<input type="text" disabled="@(!EsEditable)" @bind="_espec.Estructura" /></label>
+                <label>Uso final<input type="text" disabled="@(!EsEditable)" @bind="_espec.UsoFinal" /></label>
+                <label>Abierta
+                    <select disabled="@(!EsEditable)" value="@Texto(_espec.Abierta)"
+                            @onchange="e => _espec.Abierta = Leer(e)">
+                        @foreach (var opcion in OpcionesBooleanas) { <option value="@opcion.Key">@opcion.Value</option> }
+                    </select>
+                </label>
+                <label>Impresa
+                    <select disabled="@(!EsEditable)" value="@Texto(_espec.Impresa)"
+                            @onchange="e => _espec.Impresa = Leer(e)">
+                        @foreach (var opcion in OpcionesBooleanas) { <option value="@opcion.Key">@opcion.Value</option> }
+                    </select>
+                </label>
+                <label>Rotulado
+                    <select disabled="@(!EsEditable)" value="@Texto(_espec.Rotulado)"
+                            @onchange="e => _espec.Rotulado = Leer(e)">
+                        @foreach (var opcion in OpcionesBooleanas) { <option value="@opcion.Key">@opcion.Value</option> }
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="grupo">
+            <h5>Extrusión e impresión</h5>
+            <div class="grupo__campos">
+                <label>Ancho de extrusión (mm)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.AnchoExtrusionMm" /></label>
+                <label>Calibre de extrusión (mic)<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.CalibreExtrusionMic" /></label>
+                <label>Altura de impresión<input type="number" step="0.001" disabled="@(!EsEditable)" @bind="_espec.AlturaImpresion" /></label>
+            </div>
+        </div>
+
+        <div class="grupo">
+            <label class="grupo__observaciones">
+                Observaciones
+                <textarea rows="2" disabled="@(!EsEditable)" @bind="_espec.Observaciones"></textarea>
+            </label>
+        </div>
+
+        @if (EsEditable)
+        {
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarEspecificacionAsync">
+                @(_guardando ? "Guardando…" : "Guardar especificaciones")
+            </button>
+        }
+    </section>
+
+    @* ================= Mezcla de materiales ================= *@
+    <section class="bloque">
+        <h4 class="bloque__titulo">Materiales de la mezcla</h4>
+
+        <table class="tabla-mezcla">
+            <thead>
+                <tr>
+                    <th>MAT#</th>
+                    <th>Material</th>
+                    <th>Código de fabricante</th>
+                    <th>Lote</th>
+                    <th class="num">%</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_filas.Count == 0)
+                {
+                    <tr><td colspan="6" class="tabla-mezcla__vacio">La mezcla todavía no tiene materiales.</td></tr>
+                }
+                else
+                {
+                    @foreach (var fila in _filas)
+                    {
+                        <tr>
+                            <td>@fila.NumeroMat</td>
+                            <td>
+                                <select disabled="@(!EsEditable)" value="@fila.MaterialId"
+                                        @onchange="e => fila.MaterialId = LeerEntero(e)">
+                                    <option value="0">— Seleccione —</option>
+                                    @foreach (var material in _catalogos.Materiales)
+                                    {
+                                        <option value="@material.MaterialId">@material.Etiqueta</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input type="text" disabled="@(!EsEditable)" @bind="fila.CodigoFabricante" /></td>
+                            <td><input type="text" disabled="@(!EsEditable)" @bind="fila.Lote" /></td>
+                            <td class="num">
+                                <input type="number" step="0.01" class="pct"
+                                       disabled="@(!EsEditable)" @bind="fila.Porcentaje" />
+                            </td>
+                            <td>
+                                @if (EsEditable)
+                                {
+                                    <button type="button" class="enlace enlace--peligro"
+                                            @onclick="() => QuitarFila(fila)">Quitar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" class="num">Total</td>
+                    <td class="num @(SumaCorrecta ? "total--ok" : "total--error")">
+                        @TotalLocal.ToString("0.##") %
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        @if (!SumaCorrecta && _filas.Count > 0)
+        {
+            <p class="mezcla__aviso">
+                La mezcla debe sumar 100 %. Puede guardarla como borrador mientras la completa.
+            </p>
+        }
+
+        @if (EsEditable)
+        {
+            <div class="mezcla__acciones">
+                <button type="button" class="boton boton--fantasma" @onclick="AgregarFila">
+                    Agregar material
+                </button>
+                <button type="button" class="boton boton--primario"
+                        disabled="@_guardando" @onclick="() => GuardarMezclaAsync(true)">
+                    Guardar mezcla
+                </button>
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="() => GuardarMezclaAsync(false)"
+                        title="Guarda la mezcla aunque todavía no sume 100 %.">
+                    Guardar borrador
+                </button>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int RegistroId { get; set; }
+    [Parameter] public bool EsEditable { get; set; }
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    /// <summary>
+    /// Los campos Sí/No de la ficha admiten tres estados: sí, no y "sin
+    /// definir". Un checkbox solo sabe de dos, así que se usa una lista.
+    /// </summary>
+    private static readonly Dictionary<string, string> OpcionesBooleanas = new()
+    {
+        [""] = "—",
+        ["true"] = "Sí",
+        ["false"] = "No"
+    };
+
+    private EspecificacionProceso _espec = new();
+    private CatalogosInspeccion _catalogos = new();
+    private List<FilaMezcla> _filas = [];
+
+    private string? _error;
+    private string? _aviso;
+    private bool _guardando;
+    private int _registroCargado;
+
+    private decimal TotalLocal => _filas.Sum(f => f.Porcentaje);
+
+    private bool SumaCorrecta => Math.Abs(TotalLocal - 100m) <= 0.01m;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_registroCargado == RegistroId)
+        {
+            return;
+        }
+
+        _registroCargado = RegistroId;
+        _error = null;
+        _aviso = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        try
+        {
+            if (_catalogos.Materiales.Count == 0)
+            {
+                _catalogos = await Catalogos.ObtenerAsync();
+            }
+
+            _espec = await Registros.ObtenerEspecificacionAsync(RegistroId)
+                     ?? new EspecificacionProceso { RegistroId = RegistroId };
+
+            var mezcla = await Registros.ObtenerMezclaAsync(RegistroId);
+            _filas = mezcla.Materiales.Select(FilaMezcla.Desde).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+    }
+
+    private Task GuardarEspecificacionAsync() =>
+        EjecutarAsync(async () =>
+        {
+            _espec.RegistroId = RegistroId;
+            await Registros.GuardarEspecificacionAsync(_espec);
+            _aviso = "Especificaciones guardadas.";
+
+            // Se relee para reflejar exactamente lo que quedó almacenado.
+            _espec = await Registros.ObtenerEspecificacionAsync(RegistroId) ?? _espec;
+        });
+
+    private Task GuardarMezclaAsync(bool validarSuma) =>
+        EjecutarAsync(async () =>
+        {
+            var materiales = _filas
+                .Select(f => new MaterialEntrada(
+                    f.NumeroMat, f.MaterialId, f.CodigoFabricante, f.Lote, f.Porcentaje))
+                .ToList();
+
+            var mezcla = await Registros.GuardarMezclaAsync(RegistroId, materiales, validarSuma);
+            _filas = mezcla.Materiales.Select(FilaMezcla.Desde).ToList();
+
+            _aviso = mezcla.SumaCompleta
+                ? $"Mezcla guardada: {mezcla.TotalMateriales} materiales, 100 %."
+                : $"Borrador guardado: la mezcla suma {mezcla.PorcentajeTotal:0.##} %.";
+        });
+
+    private void AgregarFila()
+    {
+        var siguiente = _filas.Count == 0 ? 1 : _filas.Max(f => f.NumeroMat) + 1;
+        _filas.Add(new FilaMezcla { NumeroMat = siguiente });
+        _aviso = null;
+    }
+
+    private void QuitarFila(FilaMezcla fila)
+    {
+        _filas.Remove(fila);
+
+        // Se renumera para que los MAT# queden consecutivos, como en el formato en papel.
+        for (var i = 0; i < _filas.Count; i++)
+        {
+            _filas[i].NumeroMat = i + 1;
+        }
+
+        _aviso = null;
+    }
+
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await accion();
+            await OnCambio.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = MensajeDeError(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private static string MensajeDeError(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+
+    private static string Texto(bool? valor) => valor switch
+    {
+        true => "true",
+        false => "false",
+        null => ""
+    };
+
+    private static bool? Leer(ChangeEventArgs e) => e.Value?.ToString() switch
+    {
+        "true" => true,
+        "false" => false,
+        _ => null
+    };
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    /// <summary>Fila editable de la mezcla mientras el operador la captura.</summary>
+    private sealed class FilaMezcla
+    {
+        public int NumeroMat { get; set; }
+        public int MaterialId { get; set; }
+        public string? CodigoFabricante { get; set; }
+        public string? Lote { get; set; }
+        public decimal Porcentaje { get; set; }
+
+        public static FilaMezcla Desde(MaterialMezcla material) => new()
+        {
+            NumeroMat = material.NumeroMat,
+            MaterialId = material.MaterialId,
+            CodigoFabricante = material.CodigoFabricante,
+            Lote = material.Lote,
+            Porcentaje = material.Porcentaje
+        };
+    }
+}
