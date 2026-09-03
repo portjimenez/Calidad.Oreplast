@@ -1,6 +1,7 @@
 using calidad_app.Components;
 using calidad_app.Data;
 using calidad_app.Data.Sp;
+using calidad_app.Services.Calidad;
 using calidad_app.Services.Inspeccion;
 using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
@@ -37,6 +38,12 @@ builder.Services.AddScoped<IRegistroInspeccionService, RegistroInspeccionService
 builder.Services.AddScoped<IBobinaService, BobinaService>();
 builder.Services.AddScoped<IParametroService, ParametroService>();
 builder.Services.AddScoped<ICatalogoInspeccionService, CatalogoInspeccionService>();
+
+// Módulo 3 - Calidad. Comparte EjecutorSp con el módulo 2: los procedimientos de
+// alertas y del panel también devuelven varios conjuntos de resultados.
+builder.Services.AddScoped<IAlertaService, AlertaService>();
+builder.Services.AddScoped<IPanelCalidadService, PanelCalidadService>();
+
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la
 // primera carga de página, no solo dentro del árbol de componentes de Blazor.

@@ -1,0 +1,22 @@
+@*
+    Tarjeta de un indicador del panel: el número grande, qué significa y a
+    dónde ir para atenderlo.
+
+    El tono colorea la franja lateral, no el fondo entero: en una pantalla con
+    cuatro tarjetas, cuatro fondos de color compiten entre sí y ninguno destaca.
+*@
+<a class="tarjeta tarjeta--@Tono.ToString().ToLowerInvariant()" href="@Href">
+    <span class="tarjeta__titulo">@Titulo</span>
+    <span class="tarjeta__valor">@Valor</span>
+    <span class="tarjeta__detalle">@Detalle</span>
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public int Valor { get; set; }
+    [Parameter] public string? Detalle { get; set; }
+    [Parameter] public TonoChip Tono { get; set; } = TonoChip.Neutro;
+
+    /// <summary>Pantalla donde se atiende lo que la tarjeta cuenta.</summary>
+    [Parameter] public string Href { get; set; } = "/";
+}

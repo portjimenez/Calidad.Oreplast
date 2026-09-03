@@ -1,0 +1,51 @@
+.tarjeta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.7rem 0.85rem;
+    background: #fff;
+    border: 1px solid var(--op-borde);
+    border-left: 3px solid var(--op-neutro-fg);
+    border-radius: 3px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.tarjeta:hover {
+    background: var(--op-fila-alt);
+}
+
+.tarjeta__titulo {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.tarjeta__valor {
+    font-size: 1.65rem;
+    font-weight: 600;
+    line-height: 1.1;
+    color: var(--op-texto);
+}
+
+.tarjeta__detalle {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.tarjeta--exito {
+    border-left-color: var(--op-exito-fg);
+}
+
+.tarjeta--advertencia {
+    border-left-color: var(--op-advertencia-fg);
+}
+
+.tarjeta--peligro {
+    border-left-color: var(--op-peligro-fg);
+}
+
+.tarjeta--peligro .tarjeta__valor {
+    color: var(--op-peligro-fg);
+}

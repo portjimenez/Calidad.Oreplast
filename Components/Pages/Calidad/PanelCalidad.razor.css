@@ -1,0 +1,125 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.panel__encabezado {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.panel__titulo {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.panel__subtitulo {
+    margin: 0.15rem 0 0;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.panel__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+    border-radius: 3px;
+}
+
+.tarjetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.6rem;
+}
+
+.panel__columnas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+    gap: 0.6rem;
+    align-items: start;
+}
+
+.panel__vacio {
+    margin: 0;
+    padding: 0.9rem 0.65rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.panel__vertodo {
+    display: inline-block;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.72rem;
+    color: var(--op-azul);
+    text-decoration: none;
+}
+
+.panel__vertodo:hover {
+    text-decoration: underline;
+}
+
+.tabla-panel {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-panel thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-panel tbody td {
+    padding: 0.4rem 0.6rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-panel tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-panel__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-panel__principal {
+    display: inline-block;
+    font-weight: 600;
+    margin-right: 0.3rem;
+}
+
+/* Dato de apoyo bajo el principal: la fila cabe en dos renglones sin
+   necesitar una columna más. */
+.tabla-panel__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* Las filas de la cola de alertas abren el monitor: deben verse pulsables. */
+.tabla-panel--clicable tbody tr {
+    cursor: pointer;
+}
+
+.tabla-panel--clicable tbody tr:hover {
+    background: var(--op-seleccion);
+}

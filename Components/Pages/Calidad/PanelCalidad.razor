@@ -1,0 +1,275 @@
+@page "/"
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@attribute [Authorize(Policy = "VER_PANEL")]
+@inject IPanelCalidadService Panel
+@inject NavigationManager Navegacion
+
+<PageTitle>Panel de calidad</PageTitle>
+
+<div class="panel">
+    <div class="panel__encabezado">
+        <div>
+            <h1 class="panel__titulo">Panel de calidad</h1>
+            <p class="panel__subtitulo">
+                Estado del proceso al @DateTime.Now.ToString("dd/MM/yyyy HH:mm")
+                · últimos @DiasVentana días
+            </p>
+        </div>
+        <button type="button" class="boton boton--fantasma" @onclick="CargarAsync" disabled="@_cargando">
+            @(_cargando ? "Actualizando…" : "Actualizar")
+        </button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="panel__error" role="alert">@_error</p>
+    }
+
+    <div class="tarjetas">
+        <TarjetaIndicador Titulo="Alertas pendientes"
+                          Valor="@_panel.Tarjetas.AlertasPendientes"
+                          Detalle="@($"{_panel.Tarjetas.AlertasCriticasPendientes} en parámetros críticos")"
+                          Tono="@TonoAlertas"
+                          Href="/alertas" />
+
+        <TarjetaIndicador Titulo="No conformidades abiertas"
+                          Valor="@_panel.Tarjetas.NoConformidadesAbiertas"
+                          Detalle="@($"{_panel.Tarjetas.NoConformidadesCriticas} de severidad crítica")"
+                          Tono="@TonoNoConformidades"
+                          Href="/no-conformidades" />
+
+        <TarjetaIndicador Titulo="Lotes por certificar"
+                          Valor="@_panel.Tarjetas.LotesPorCertificar"
+                          Detalle="Liberados y sin certificado emitido"
+                          Tono="@(_panel.Tarjetas.LotesPorCertificar > 0 ? TonoChip.Advertencia : TonoChip.Neutro)"
+                          Href="/trazabilidad-lote" />
+
+        <TarjetaIndicador Titulo="Registros en proceso"
+                          Valor="@_panel.Tarjetas.RegistrosEnProceso"
+                          Detalle="Inspecciones abiertas en planta"
+                          Tono="TonoChip.Neutro"
+                          Href="/inspeccion-en-proceso" />
+    </div>
+
+    <div class="panel__columnas">
+        <PanelCard Titulo="Alertas por atender" Class="panel__bloque">
+            @if (_cargando)
+            {
+                <p class="panel__vacio">Cargando…</p>
+            }
+            else if (_panel.AlertasUrgentes.Count == 0)
+            {
+                <p class="panel__vacio">Sin alertas pendientes en el periodo.</p>
+            }
+            else
+            {
+                <table class="tabla-panel tabla-panel--clicable">
+                    <thead>
+                        <tr>
+                            <th>Parámetro</th>
+                            <th>Orden</th>
+                            <th class="tabla-panel__num">Valor</th>
+                            <th>Máquina</th>
+                            <th>Espera</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var alerta in _panel.AlertasUrgentes)
+                        {
+                            <tr @onclick="() => AbrirAlerta(alerta.AlertaId)">
+                                <td>
+                                    <span class="tabla-panel__principal">@alerta.ParametroNombre</span>
+                                    @if (alerta.EsCritico)
+                                    {
+                                        <EstadoChip Texto="Crítico" Tono="TonoChip.Peligro" />
+                                    }
+                                </td>
+                                <td>
+                                    @alerta.NumeroOP
+                                    <span class="tabla-panel__secundario">@alerta.OrigenTexto</span>
+                                </td>
+                                <td class="tabla-panel__num">
+                                    @Formato(alerta.ValorRegistrado) @alerta.Unidad
+                                    <span class="tabla-panel__secundario">@alerta.RangoTexto</span>
+                                </td>
+                                <td>
+                                    @alerta.MaquinaCodigo
+                                    <span class="tabla-panel__secundario">@alerta.TurnoNombre</span>
+                                </td>
+                                <td>@Antiguedad(alerta.HorasSinAtender)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <a class="panel__vertodo" href="/alertas">Ver todas las alertas</a>
+            }
+        </PanelCard>
+
+        <PanelCard Titulo="No conformidades abiertas" Class="panel__bloque">
+            @if (_cargando)
+            {
+                <p class="panel__vacio">Cargando…</p>
+            }
+            else if (_panel.NoConformidades.Count == 0)
+            {
+                <p class="panel__vacio">No hay no conformidades abiertas.</p>
+            }
+            else
+            {
+                <table class="tabla-panel">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Defecto</th>
+                            <th>Severidad</th>
+                            <th>Estado</th>
+                            <th>Días</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var nc in _panel.NoConformidades)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="tabla-panel__principal">@nc.Codigo</span>
+                                    <span class="tabla-panel__secundario">@nc.AreaNombre</span>
+                                </td>
+                                <td>
+                                    @nc.TipoDefectoNombre
+                                    <span class="tabla-panel__secundario">
+                                        @(nc.ResponsableNombre ?? "Sin responsable asignado")
+                                    </span>
+                                </td>
+                                <td><EstadoChip Texto="@nc.SeveridadNombre" Tono="@TonoSeveridad(nc.SeveridadNombre)" /></td>
+                                <td>@TextoEstadoNc(nc.EstadoNombre)</td>
+                                <td>@nc.DiasAbierta</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <a class="panel__vertodo" href="/no-conformidades">Ver todas las no conformidades</a>
+            }
+        </PanelCard>
+
+        <PanelCard Titulo="Lotes liberados por certificar" Class="panel__bloque">
+            @if (_cargando)
+            {
+                <p class="panel__vacio">Cargando…</p>
+            }
+            else if (_panel.LotesPorCertificar.Count == 0)
+            {
+                <p class="panel__vacio">No hay lotes esperando certificado.</p>
+            }
+            else
+            {
+                <table class="tabla-panel">
+                    <thead>
+                        <tr>
+                            <th>Lote</th>
+                            <th>Cliente</th>
+                            <th>Producto</th>
+                            <th class="tabla-panel__num">Bobinas</th>
+                            <th class="tabla-panel__num">Peso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var lote in _panel.LotesPorCertificar)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="tabla-panel__principal">@lote.CodigoLote</span>
+                                    <span class="tabla-panel__secundario">@lote.NumeroOP</span>
+                                </td>
+                                <td>@lote.ClienteNombre</td>
+                                <td>
+                                    @lote.ProductoCodigo
+                                    <span class="tabla-panel__secundario">@lote.ProductoNombre</span>
+                                </td>
+                                <td class="tabla-panel__num">@lote.TotalBobinas</td>
+                                <td class="tabla-panel__num">@Formato(lote.PesoTotal) kg</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </PanelCard>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Ventana del panel. Las alertas y las no conformidades se acotan a este
+    /// periodo para que las tarjetas hablen de lo que está pasando y no del
+    /// histórico completo; los lotes por certificar no se filtran por fecha,
+    /// porque un lote liberado hace tres semanas sigue pendiente hoy.
+    /// </summary>
+    private const int DiasVentana = 30;
+
+    private ResumenPanelCalidad _panel = new();
+    private bool _cargando = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            var hoy = DateOnly.FromDateTime(DateTime.Today);
+            _panel = await Panel.ObtenerAsync(hoy.AddDays(-DiasVentana), hoy);
+        }
+        catch (Exception ex)
+        {
+            _error = "No se pudo cargar el panel. " + ex.Message;
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>Abre el monitor de alertas ya posicionado en la alerta elegida.</summary>
+    private void AbrirAlerta(int alertaId) => Navegacion.NavigateTo($"/alertas?alerta={alertaId}");
+
+    private TonoChip TonoAlertas =>
+        _panel.Tarjetas.AlertasCriticasPendientes > 0 ? TonoChip.Peligro
+        : _panel.Tarjetas.AlertasPendientes > 0 ? TonoChip.Advertencia
+        : TonoChip.Exito;
+
+    private TonoChip TonoNoConformidades =>
+        _panel.Tarjetas.NoConformidadesCriticas > 0 ? TonoChip.Peligro
+        : _panel.Tarjetas.NoConformidadesAbiertas > 0 ? TonoChip.Advertencia
+        : TonoChip.Exito;
+
+    private static TonoChip TonoSeveridad(string severidad) => severidad switch
+    {
+        "Critica" => TonoChip.Peligro,
+        "Mayor" => TonoChip.Advertencia,
+        _ => TonoChip.Neutro
+    };
+
+    /// <summary>Los estados del catálogo vienen sin espacios; aquí se leen como texto.</summary>
+    private static string TextoEstadoNc(string estado) => estado switch
+    {
+        "EnAnalisis" => "En análisis",
+        "AccionImplementada" => "Acción implementada",
+        var otro => otro
+    };
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "-";
+
+    /// <summary>
+    /// Antigüedad en la unidad que se entiende de un vistazo: una alerta de
+    /// hace 50 horas se lee mejor como "2 d" que como el número de horas.
+    /// </summary>
+    private static string Antiguedad(int horas) => horas switch
+    {
+        < 1 => "recién",
+        < 24 => $"{horas} h",
+        _ => $"{horas / 24} d"
+    };
+}

@@ -43,7 +43,7 @@ public sealed class EjecutorSp(IDbContextFactory<AppDbContext> dbFactory)
         }
         catch (SqlException ex)
         {
-            throw ErroresInspeccion.Traducir(ex);
+            throw ErroresSp.Traducir(ex);
         }
         finally
         {
@@ -69,7 +69,7 @@ public sealed class EjecutorSp(IDbContextFactory<AppDbContext> dbFactory)
         }
         catch (SqlException ex)
         {
-            throw ErroresInspeccion.Traducir(ex);
+            throw ErroresSp.Traducir(ex);
         }
         finally
         {

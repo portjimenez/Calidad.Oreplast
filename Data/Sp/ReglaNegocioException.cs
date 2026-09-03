@@ -1,4 +1,3 @@
-using Microsoft.Data.SqlClient;
 
 namespace calidad_app.Data.Sp;
 
@@ -13,20 +12,14 @@ public class ReglaNegocioException(string mensaje, int numero) : Exception(mensa
 }
 
 /// <summary>
-/// Traduce los errores que lanzan los procedimientos del módulo de inspección.
-///
-/// El mapeo se hace por NÚMERO y no por texto: así el mensaje que ve el operador
-/// se redacta aquí, en español y con tildes (los literales de SQL Server del
-/// proyecto van sin acentos para evitar problemas de codificación), y cambiar la
-/// redacción no obliga a tocar la base. Si aparece un número sin traducir se usa
-/// el mensaje original del procedimiento, que ya es legible.
+/// Mensajes de los errores que lanzan los procedimientos del módulo de
+/// inspección (rangos 50010-50080). Quien los traduce es
+/// <see cref="ErroresSp"/>, que consulta este catálogo y el del módulo de
+/// calidad.
 /// </summary>
-public static class ErroresInspeccion
+internal static class ErroresInspeccion
 {
-    /// <summary>Primer número reservado para errores lanzados a propósito con THROW.</summary>
-    private const int PrimerErrorDeNegocio = 50000;
-
-    private static readonly Dictionary<int, string> Mensajes = new()
+    internal static readonly Dictionary<int, string> Mensajes = new()
     {
         // Alta del registro
         [50010] = "La orden de producción indicada no existe.",
@@ -85,24 +78,4 @@ public static class ErroresInspeccion
         [50072] = "Se envió un ítem de checklist inexistente, inactivo o ajeno al área.",
         [50080] = "La sección debe ser Despeje de línea o Cierre de orden."
     };
-
-    /// <summary>
-    /// Convierte un error de SQL Server en excepción de dominio cuando lo lanzó
-    /// un THROW nuestro. Los errores por debajo de 50000 son fallos reales del
-    /// motor (tiempo de espera, conexión, restricciones) y se dejan pasar para
-    /// que los trate el manejador de errores de la aplicación.
-    /// </summary>
-    public static Exception Traducir(SqlException ex)
-    {
-        if (ex.Number < PrimerErrorDeNegocio)
-        {
-            return ex;
-        }
-
-        var mensaje = Mensajes.TryGetValue(ex.Number, out var texto)
-            ? texto
-            : ex.Message;
-
-        return new ReglaNegocioException(mensaje, ex.Number);
-    }
 }

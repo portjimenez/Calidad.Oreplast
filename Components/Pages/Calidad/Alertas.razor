@@ -1,0 +1,583 @@
+@page "/alertas"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@attribute [Authorize(Policy = "VER_ALERTAS")]
+@inject IAlertaService ServicioAlertas
+
+<PageTitle>Alertas de proceso</PageTitle>
+
+<MaestroDetalle>
+    <Maestro>
+        <PanelCard Titulo="Alertas de proceso">
+            <div class="filtros">
+                <select class="filtros__select" value="@_estadoFiltro" @onchange="CambiarEstadoAsync">
+                    <option value="pendientes">Pendientes</option>
+                    <option value="atendidas">Atendidas</option>
+                    <option value="todas">Todas</option>
+                </select>
+                <label class="filtros__check">
+                    <input type="checkbox"
+                           checked="@_filtro.SoloCriticos"
+                           @onchange="CambiarSoloCriticosAsync" />
+                    Solo críticos
+                </label>
+                <input type="date" class="filtros__fecha"
+                       value="@_filtro.FechaDesde?.ToString("yyyy-MM-dd")"
+                       @onchange="CambiarDesdeAsync" aria-label="Desde" />
+                <input type="date" class="filtros__fecha"
+                       value="@_filtro.FechaHasta?.ToString("yyyy-MM-dd")"
+                       @onchange="CambiarHastaAsync" aria-label="Hasta" />
+            </div>
+
+            <table class="tabla-maestro">
+                <thead>
+                    <tr>
+                        <th class="tabla-maestro__check">
+                            <input type="checkbox"
+                                   checked="@TodasSeleccionadas"
+                                   disabled="@(_seleccionables.Count == 0)"
+                                   @onchange="AlternarTodas"
+                                   aria-label="Seleccionar todas" />
+                        </th>
+                        <th>Parámetro</th>
+                        <th>Origen</th>
+                        <th class="tabla-maestro__num">Valor</th>
+                        <th>Espera</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_cargandoLista)
+                    {
+                        <tr><td colspan="5" class="tabla-maestro__vacio">Cargando alertas…</td></tr>
+                    }
+                    else if (_alertas.Count == 0)
+                    {
+                        <tr><td colspan="5" class="tabla-maestro__vacio">Sin alertas que coincidan.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var alerta in _alertas)
+                        {
+                            <tr class="@ClaseFila(alerta)" @onclick="() => SeleccionarAsync(alerta)">
+                                <td class="tabla-maestro__check" @onclick:stopPropagation="true">
+                                    <input type="checkbox"
+                                           checked="@_marcadas.Contains(alerta.AlertaId)"
+                                           disabled="@alerta.Atendida"
+                                           @onchange="e => Marcar(alerta.AlertaId, e)"
+                                           aria-label="@($"Seleccionar alerta {alerta.AlertaId}")" />
+                                </td>
+                                <td>
+                                    <span class="tabla-maestro__principal">@alerta.ParametroCodigo</span>
+                                    @if (alerta.EsCritico)
+                                    {
+                                        <EstadoChip Texto="Crítico" Tono="TonoChip.Peligro" />
+                                    }
+                                </td>
+                                <td>
+                                    @alerta.NumeroOP
+                                    <span class="tabla-maestro__secundario">@alerta.OrigenTexto</span>
+                                </td>
+                                <td class="tabla-maestro__num">
+                                    @Formato(alerta.ValorRegistrado)
+                                    <span class="tabla-maestro__secundario">@alerta.Desviacion.ToLowerInvariant()</span>
+                                </td>
+                                <td>
+                                    @if (alerta.Atendida)
+                                    {
+                                        <EstadoChip Texto="Atendida" Tono="TonoChip.Exito" />
+                                    }
+                                    else
+                                    {
+                                        @Antiguedad(alerta.HorasSinAtender)
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </PanelCard>
+    </Maestro>
+    <Detalle>
+        <PanelCard Titulo="@TituloDetalle">
+            <div class="detalle-alerta">
+                @if (_error is not null)
+                {
+                    <p class="detalle-alerta__error" role="alert">@_error</p>
+                }
+                @if (_aviso is not null)
+                {
+                    <p class="detalle-alerta__aviso" role="status">@_aviso</p>
+                }
+
+                @if (_detalle is null)
+                {
+                    <p class="detalle-alerta__placeholder">
+                        @(_cargandoDetalle
+                            ? "Cargando la alerta…"
+                            : "Seleccione una alerta de la lista para ver su detalle.")
+                    </p>
+                }
+                else
+                {
+                    <div class="desviacion">
+                        <div class="desviacion__medida">
+                            <span class="desviacion__etiqueta">Valor medido</span>
+                            <span class="desviacion__valor desviacion__valor--@_detalle.Desviacion.ToLowerInvariant()">
+                                @Formato(_detalle.ValorRegistrado) @_detalle.Unidad
+                            </span>
+                            <span class="desviacion__nota">@_detalle.Desviacion del límite</span>
+                        </div>
+                        <div class="desviacion__medida">
+                            <span class="desviacion__etiqueta">Objetivo de ficha</span>
+                            <span class="desviacion__valor">@Formato(_detalle.ValorObjetivo) @_detalle.Unidad</span>
+                            <span class="desviacion__nota">Rango @_detalle.RangoTexto</span>
+                        </div>
+                        <div class="desviacion__medida">
+                            <span class="desviacion__etiqueta">Parámetro</span>
+                            <span class="desviacion__valor desviacion__valor--texto">@_detalle.ParametroNombre</span>
+                            <span class="desviacion__nota">
+                                @(_detalle.EsCritico ? "Crítico para el producto" : "No crítico")
+                                @(_detalle.FichaVersion is null ? "" : $" · ficha {_detalle.FichaVersion}")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="contexto">
+                        <div class="contexto__campo">
+                            <span>Orden</span>
+                            <strong>@_detalle.NumeroOP</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Cliente</span>
+                            <strong>@_detalle.ClienteNombre</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Producto</span>
+                            <strong>@_detalle.ProductoCodigo</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Registro</span>
+                            <strong>@_detalle.IdRegistro</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Máquina</span>
+                            <strong>@_detalle.MaquinaCodigo</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Turno</span>
+                            <strong>@_detalle.TurnoNombre</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Operador</span>
+                            <strong>@_detalle.OperadorNombre</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Detectada</span>
+                            <strong>@_detalle.FechaDeteccion.ToString("dd/MM/yyyy HH:mm")</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Origen</span>
+                            <strong>@_detalle.OrigenTexto</strong>
+                        </div>
+                        <div class="contexto__campo">
+                            <span>Lote</span>
+                            <strong>@(_detalle.CodigoLote ?? "Sin lote asignado")</strong>
+                        </div>
+                    </div>
+
+                    <section class="bloque">
+                        <h3 class="bloque__titulo">
+                            Comportamiento de @_detalle.ParametroCodigo en el registro
+                        </h3>
+                        @if (_detalle.Historial.Count == 0)
+                        {
+                            <p class="bloque__vacio">Sin mediciones registradas.</p>
+                        }
+                        else
+                        {
+                            <p class="bloque__pista">
+                                @TextoTendencia
+                            </p>
+                            <table class="tabla-bloque">
+                                <thead>
+                                    <tr>
+                                        <th>Origen</th>
+                                        <th class="tabla-bloque__num">Valor</th>
+                                        <th>Resultado</th>
+                                        <th>Medido</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var medicion in _detalle.Historial)
+                                    {
+                                        <tr>
+                                            <td>@medicion.OrigenTexto</td>
+                                            <td class="tabla-bloque__num">@Formato(medicion.ValorRegistrado)</td>
+                                            <td>
+                                                <EstadoChip Texto="@TextoRango(medicion.DentroDeRango)"
+                                                            Tono="@TonoRango(medicion.DentroDeRango)" />
+                                            </td>
+                                            <td>@medicion.FechaRegistro.ToString("dd/MM HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </section>
+
+                    @if (_detalle.Relacionadas.Count > 0)
+                    {
+                        <section class="bloque">
+                            <h3 class="bloque__titulo">
+                                Otras alertas abiertas del registro (@_detalle.Relacionadas.Count)
+                            </h3>
+                            <table class="tabla-bloque">
+                                <thead>
+                                    <tr>
+                                        <th>Parámetro</th>
+                                        <th>Origen</th>
+                                        <th class="tabla-bloque__num">Valor</th>
+                                        <th>Detectada</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var otra in _detalle.Relacionadas)
+                                    {
+                                        <tr class="tabla-bloque__clicable" @onclick="() => SeleccionarPorIdAsync(otra.AlertaId)">
+                                            <td>
+                                                @otra.ParametroCodigo
+                                                @if (otra.EsCritico)
+                                                {
+                                                    <EstadoChip Texto="Crítico" Tono="TonoChip.Peligro" />
+                                                }
+                                            </td>
+                                            <td>@(otra.BobinaId is null ? "Corrida" : $"Bobina {otra.IdBobi}")</td>
+                                            <td class="tabla-bloque__num">@Formato(otra.ValorRegistrado)</td>
+                                            <td>@otra.FechaDeteccion.ToString("dd/MM HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </section>
+                    }
+
+                    @if (_detalle.Atendida)
+                    {
+                        <section class="bloque atencion atencion--cerrada">
+                            <h3 class="bloque__titulo">Atendida</h3>
+                            <p class="atencion__firma">
+                                @_detalle.AtendidaPorNombre ·
+                                @_detalle.FechaAtencion?.ToString("dd/MM/yyyy HH:mm")
+                                @if (_detalle.NoConformidadCodigo is not null)
+                                {
+                                    <span> · no conformidad @_detalle.NoConformidadCodigo (@TextoEstadoNc(_detalle.NoConformidadEstado))</span>
+                                }
+                            </p>
+                            <p class="atencion__observacion">@_detalle.Observacion</p>
+                        </section>
+                    }
+                    else
+                    {
+                        <AuthorizeView Policy="GESTIONAR_NOCONFORMIDAD" Context="calidad">
+                            <Authorized>
+                                <section class="bloque atencion">
+                                    <h3 class="bloque__titulo">Atender</h3>
+                                    <p class="atencion__nota">
+                                        Atender no borra la desviación: queda registrada como evidencia.
+                                        Lo que se guarda es quién la revisó y qué se dispuso.
+                                    </p>
+                                    <textarea class="atencion__texto"
+                                              rows="3"
+                                              maxlength="500"
+                                              placeholder="Qué se hizo con esta desviación…"
+                                              value="@_observacion"
+                                              @onchange="e => _observacion = e.Value?.ToString() ?? string.Empty"></textarea>
+                                    <div class="atencion__acciones">
+                                        <span class="atencion__conteo">@TextoSeleccion</span>
+                                        <button type="button" class="boton boton--primario"
+                                                disabled="@(_atendiendo || string.IsNullOrWhiteSpace(_observacion))"
+                                                @onclick="AtenderAsync">
+                                            @(_atendiendo ? "Guardando…" : TextoBotonAtender)
+                                        </button>
+                                    </div>
+                                </section>
+                            </Authorized>
+                            <NotAuthorized>
+                                <p class="detalle-alerta__pista">
+                                    Solo Ingeniería de Calidad puede atender alertas.
+                                </p>
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    }
+                }
+            </div>
+        </PanelCard>
+    </Detalle>
+</MaestroDetalle>
+
+@code {
+    /// <summary>Alerta a abrir al entrar, cuando se llega desde el panel.</summary>
+    [SupplyParameterFromQuery(Name = "alerta")]
+    private int? AlertaInicial { get; set; }
+
+    private const int DiasVentana = 30;
+
+    private readonly FiltroAlertas _filtro = new();
+    private List<AlertaResumen> _alertas = [];
+
+    /// <summary>
+    /// Alertas marcadas para atender en bloque. Se guardan los ids y no las
+    /// instancias porque la lista se recarga tras cada operación y las
+    /// instancias anteriores dejarían de ser las mismas.
+    /// </summary>
+    private readonly HashSet<int> _marcadas = [];
+
+    private AlertaDetalle? _detalle;
+    private string _estadoFiltro = "pendientes";
+    private string _observacion = string.Empty;
+
+    private bool _cargandoLista = true;
+    private bool _cargandoDetalle;
+    private bool _atendiendo;
+    private string? _error;
+    private string? _aviso;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        _filtro.FechaDesde = hoy.AddDays(-DiasVentana);
+        _filtro.FechaHasta = hoy;
+
+        await CargarListaAsync();
+
+        if (AlertaInicial is { } id)
+        {
+            await SeleccionarPorIdAsync(id);
+        }
+    }
+
+    private async Task CargarListaAsync()
+    {
+        _cargandoLista = true;
+        _error = null;
+
+        try
+        {
+            _alertas = await ServicioAlertas.ListarAsync(_filtro);
+
+            // Una alerta que ya no está en la lista tampoco puede seguir marcada.
+            _marcadas.IntersectWith(_alertas.Where(a => !a.Atendida).Select(a => a.AlertaId));
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoLista = false;
+        }
+    }
+
+    private Task SeleccionarAsync(AlertaResumen alerta) => SeleccionarPorIdAsync(alerta.AlertaId);
+
+    private async Task SeleccionarPorIdAsync(int alertaId)
+    {
+        _cargandoDetalle = true;
+        _error = null;
+        _aviso = null;
+        _observacion = string.Empty;
+
+        try
+        {
+            _detalle = await ServicioAlertas.ObtenerAsync(alertaId);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    private async Task AtenderAsync()
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        _atendiendo = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            // Se atiende lo marcado; si no hay nada marcado, la alerta abierta.
+            var objetivo = _marcadas.Count > 0 ? _marcadas.ToList() : [_detalle.AlertaId];
+
+            var resultado = await ServicioAlertas.AtenderAsync(objetivo, _observacion.Trim());
+
+            _aviso = resultado.AlertasYaAtendidas > 0
+                ? $"Se atendieron {resultado.AlertasAtendidas} alertas. " +
+                  $"{resultado.AlertasYaAtendidas} ya habían sido atendidas por otro usuario."
+                : $"Se atendieron {resultado.AlertasAtendidas} alertas.";
+
+            _marcadas.Clear();
+            _observacion = string.Empty;
+
+            await CargarListaAsync();
+            await SeleccionarPorIdAsync(_detalle.AlertaId);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _atendiendo = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync(ChangeEventArgs e)
+    {
+        _estadoFiltro = e.Value?.ToString() ?? "pendientes";
+        _filtro.Atendida = _estadoFiltro switch
+        {
+            "pendientes" => false,
+            "atendidas" => true,
+            _ => null
+        };
+
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarSoloCriticosAsync(ChangeEventArgs e)
+    {
+        _filtro.SoloCriticos = e.Value is true;
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarDesdeAsync(ChangeEventArgs e)
+    {
+        _filtro.FechaDesde = LeerFecha(e);
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarHastaAsync(ChangeEventArgs e)
+    {
+        _filtro.FechaHasta = LeerFecha(e);
+        await CargarListaAsync();
+    }
+
+    private void Marcar(int alertaId, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _marcadas.Add(alertaId);
+        }
+        else
+        {
+            _marcadas.Remove(alertaId);
+        }
+    }
+
+    private void AlternarTodas(ChangeEventArgs e)
+    {
+        _marcadas.Clear();
+
+        if (e.Value is true)
+        {
+            _marcadas.UnionWith(_seleccionables);
+        }
+    }
+
+    /// <summary>Solo las pendientes se pueden marcar: atender una atendida no hace nada.</summary>
+    private List<int> _seleccionables =>
+        _alertas.Where(a => !a.Atendida).Select(a => a.AlertaId).ToList();
+
+    private bool TodasSeleccionadas =>
+        _seleccionables.Count > 0 && _marcadas.Count == _seleccionables.Count;
+
+    private string TituloDetalle =>
+        _detalle is null ? "Detalle de la alerta" : $"Alerta · {_detalle.ParametroNombre}";
+
+    private string TextoSeleccion => _marcadas.Count switch
+    {
+        0 => "Se atenderá solo esta alerta.",
+        1 => "1 alerta seleccionada en la lista.",
+        var n => $"{n} alertas seleccionadas en la lista."
+    };
+
+    private string TextoBotonAtender =>
+        _marcadas.Count > 1 ? $"Atender {_marcadas.Count} alertas" : "Atender alerta";
+
+    /// <summary>
+    /// Lo que hace útil el historial: una desviación aislada se resuelve con una
+    /// observación, una que se repite es material de no conformidad.
+    /// </summary>
+    private string TextoTendencia
+    {
+        get
+        {
+            if (_detalle is null)
+            {
+                return string.Empty;
+            }
+
+            var fuera = _detalle.Historial.Count(m => m.DentroDeRango == false);
+            var total = _detalle.Historial.Count;
+
+            return fuera <= 1
+                ? $"{fuera} de {total} mediciones fuera de tolerancia: desviación aislada."
+                : $"{fuera} de {total} mediciones fuera de tolerancia: la desviación se repite, " +
+                  "considere levantar una no conformidad.";
+        }
+    }
+
+    private string ClaseFila(AlertaResumen alerta) =>
+        alerta.AlertaId == _detalle?.AlertaId ? "tabla-maestro__fila--seleccionada" : string.Empty;
+
+    private static DateOnly? LeerFecha(ChangeEventArgs e) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : null;
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "-";
+
+    private static string TextoRango(bool? dentro) => dentro switch
+    {
+        true => "En tolerancia",
+        false => "Fuera",
+        _ => "Sin comparar"
+    };
+
+    private static TonoChip TonoRango(bool? dentro) => dentro switch
+    {
+        true => TonoChip.Exito,
+        false => TonoChip.Peligro,
+        _ => TonoChip.Neutro
+    };
+
+    private static string TextoEstadoNc(string? estado) => estado switch
+    {
+        "EnAnalisis" => "En análisis",
+        "AccionImplementada" => "Acción implementada",
+        null => "sin estado",
+        var otro => otro
+    };
+
+    private static string Antiguedad(int horas) => horas switch
+    {
+        < 1 => "recién",
+        < 24 => $"{horas} h",
+        _ => $"{horas / 24} d"
+    };
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

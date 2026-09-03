@@ -1,0 +1,345 @@
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__select,
+.filtros__fecha {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Tabla maestra ---- */
+.tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.tabla-maestro__fila--seleccionada,
+.tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.tabla-maestro__check {
+    width: 1.6rem;
+    text-align: center;
+    cursor: default;
+}
+
+.tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-maestro__principal {
+    font-weight: 600;
+    margin-right: 0.3rem;
+}
+
+.tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Detalle ---- */
+.detalle-alerta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.65rem;
+}
+
+.detalle-alerta__placeholder {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.detalle-alerta__error,
+.detalle-alerta__aviso {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.detalle-alerta__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.detalle-alerta__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.detalle-alerta__pista {
+    margin: 0;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- La desviación: es lo primero que se debe leer ---- */
+.desviacion {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.6rem;
+}
+
+.desviacion__medida {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.55rem 0.7rem;
+    background: var(--op-fondo);
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+}
+
+.desviacion__etiqueta {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--op-texto-secundario);
+}
+
+.desviacion__valor {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--op-texto);
+}
+
+.desviacion__valor--texto {
+    font-size: 0.95rem;
+}
+
+.desviacion__valor--alto,
+.desviacion__valor--bajo {
+    color: var(--op-peligro-fg);
+}
+
+.desviacion__nota {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Contexto de la corrida ---- */
+.contexto {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.35rem 0.75rem;
+}
+
+.contexto__campo {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.75rem;
+}
+
+.contexto__campo span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.contexto__campo strong {
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+/* ---- Bloques del expediente ---- */
+.bloque {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--op-borde-suave);
+}
+
+.bloque__titulo {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.bloque__pista,
+.bloque__vacio {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.bloque__vacio {
+    font-style: italic;
+}
+
+.tabla-bloque {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.73rem;
+}
+
+.tabla-bloque thead th {
+    text-align: left;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--op-texto-secundario);
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--op-borde);
+}
+
+.tabla-bloque tbody td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.tabla-bloque__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-bloque__clicable {
+    cursor: pointer;
+}
+
+.tabla-bloque__clicable:hover {
+    background: var(--op-seleccion);
+}
+
+/* ---- Atención ---- */
+.atencion__nota {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.atencion__texto {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.4rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    resize: vertical;
+}
+
+.atencion__acciones {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.atencion__conteo {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.atencion--cerrada {
+    background: var(--op-exito-bg);
+    border-radius: 3px;
+    padding: 0.6rem 0.7rem;
+}
+
+.atencion__firma {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--op-exito-fg);
+}
+
+.atencion__observacion {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+}
+
+/* ---- Botones ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
