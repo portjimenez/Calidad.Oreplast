@@ -130,7 +130,7 @@
                             <td>
                                 <select disabled="@(!EsEditable)" value="@fila.MaterialId"
                                         @onchange="e => fila.MaterialId = LeerEntero(e)">
-                                    <option value="0">— Seleccione —</option>
+                                    <option value="0">Seleccione...</option>
                                     @foreach (var material in _catalogos.Materiales)
                                     {
                                         <option value="@material.MaterialId">@material.Etiqueta</option>
@@ -203,7 +203,7 @@
     /// </summary>
     private static readonly Dictionary<string, string> OpcionesBooleanas = new()
     {
-        [""] = "—",
+        [""] = "-",
         ["true"] = "Sí",
         ["false"] = "No"
     };

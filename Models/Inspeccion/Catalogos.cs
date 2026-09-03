@@ -7,7 +7,7 @@ public class MaterialCatalogo
     public string Codigo { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
 
-    public string Etiqueta => $"{Codigo} — {Nombre}";
+    public string Etiqueta => $"{Codigo} - {Nombre}";
 }
 
 /// <summary>Razón de tiempo muerto de las secciones Setup y Producción.</summary>
@@ -24,7 +24,7 @@ public class OperadorCatalogo
     public string Codigo { get; set; } = string.Empty;
     public string NombreCompleto { get; set; } = string.Empty;
 
-    public string Etiqueta => $"{Codigo} — {NombreCompleto}";
+    public string Etiqueta => $"{Codigo} - {NombreCompleto}";
 }
 
 /// <summary>
@@ -61,7 +61,7 @@ public class MaquinaCatalogo
     public int AreaId { get; set; }
     public string AreaNombre { get; set; } = string.Empty;
 
-    public string Etiqueta => $"{Codigo} — {Nombre}";
+    public string Etiqueta => $"{Codigo} - {Nombre}";
 }
 
 /// <summary>Tipo de registro (formato) por área, por ejemplo REEX en extrusión.</summary>

@@ -184,7 +184,7 @@
                                     }
                                     else
                                     {
-                                        <div class="campo-valor">@_detalle.MaquinaCodigo — @_detalle.MaquinaNombre</div>
+                                        <div class="campo-valor">@_detalle.MaquinaCodigo - @_detalle.MaquinaNombre</div>
                                     }
                                 </div>
                                 <div class="campo @ClaseCampoEditable">
@@ -214,7 +214,7 @@
                                     else
                                     {
                                         <div class="campo-valor">
-                                            @(_detalle.FechaHoraInicio?.ToString("dd/MM/yyyy HH:mm") ?? "—")
+                                            @(_detalle.FechaHoraInicio?.ToString("dd/MM/yyyy HH:mm") ?? "-")
                                         </div>
                                     }
                                 </div>
@@ -629,7 +629,7 @@
     private bool PuedeCapturar => _detalle is { EsEditable: true } && _puedeRegistrar;
 
     private string TituloDetalle =>
-        _detalle is null ? "Inspección en proceso" : $"Inspección en proceso — {_detalle.NumeroOP}";
+        _detalle is null ? "Inspección en proceso" : $"Inspección en proceso - {_detalle.NumeroOP}";
 
     private string DescripcionModo => (_puedeLiberar, _puedeRegistrar) switch
     {
@@ -644,7 +644,7 @@
             : string.Join(", ", _detalle.Lotes.Select(l => l.CodigoLote));
 
     private string TextoFicha =>
-        _ficha is null ? "—"
+        _ficha is null ? "-"
         : _ficha.TieneFicha ? $"{_ficha.FichaVersion} · {_ficha.Parametros.Count(p => p.TieneTolerancia)} parámetros con tolerancia"
         : "El producto no tiene ficha vigente";
 
@@ -654,7 +654,7 @@
         EstadoRegistro.EnProceso => "En proceso",
         EstadoRegistro.Liberado => "Liberado",
         EstadoRegistro.Cerrado => "Cerrado",
-        _ => "—"
+        _ => "-"
     };
 
     private TonoChip TonoEstadoProceso => _detalle?.Estado switch

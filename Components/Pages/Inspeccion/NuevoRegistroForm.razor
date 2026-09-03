@@ -95,13 +95,13 @@
                     <select @onchange="CambiarTipo" value="@_tipoRegistroId">
                         @foreach (var tipo in _catalogos.TiposRegistro)
                         {
-                            <option value="@tipo.TipoRegistroId">@tipo.Codigo — @tipo.Nombre</option>
+                            <option value="@tipo.TipoRegistroId">@tipo.Codigo - @tipo.Nombre</option>
                         }
                     </select>
                 </label>
                 <label>Máquina
                     <select value="@_maquinaId" @onchange="e => _maquinaId = LeerEntero(e)">
-                        <option value="0">— Seleccione —</option>
+                        <option value="0">Seleccione...</option>
                         @foreach (var maquina in _catalogos.MaquinasDe(_areaId))
                         {
                             <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
@@ -113,7 +113,7 @@
                 </label>
                 <label>Turno
                     <select value="@_turnoId" @onchange="e => _turnoId = LeerEntero(e)">
-                        <option value="0">— Seleccione —</option>
+                        <option value="0">Seleccione...</option>
                         @foreach (var turno in _catalogos.Turnos)
                         {
                             <option value="@turno.TurnoId">@turno.Nombre</option>
@@ -122,7 +122,7 @@
                 </label>
                 <label>Operador
                     <select value="@_operadorId" @onchange="e => _operadorId = LeerEntero(e)">
-                        <option value="0">— Seleccione —</option>
+                        <option value="0">Seleccione...</option>
                         @foreach (var operador in _catalogos.Operadores)
                         {
                             <option value="@operador.UsuarioId">@operador.Etiqueta</option>

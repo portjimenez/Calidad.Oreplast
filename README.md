@@ -1,4 +1,4 @@
-# Sistema de Control de Calidad — Oreplast
+# Sistema de Control de Calidad - Oreplast
 
 Aplicación web para el control de calidad de empaques flexibles en **Oreplast S.A.** (planta Mixco z.2). Proyecto de graduación (UMG).
 
@@ -12,7 +12,7 @@ Este repositorio contiene la **aplicación web** (front-end + lógica). Los proc
 - .NET 10 (LTS) / ASP.NET Core
 - C#
 - Entity Framework Core (acceso a datos), apoyado en procedimientos almacenados
-- SQL Server — base de datos: `OreplastCalidad`
+- SQL Server - base de datos: `OreplastCalidad`
 - Autenticación: Windows Authentication (dominio OREPLAST) en producción
 - Despliegue: IIS en la red interna de la planta
 - UI: componentes propios con estilo tipo Infor IQM (azul `#1f6fb2`)

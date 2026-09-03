@@ -6,8 +6,8 @@ namespace calidad_app.Services.Inspeccion;
 /// Producción por bobina: alta, corrección, confirmación y checklist de calidad.
 ///
 /// Confirmar y retirar la confirmación son operaciones distintas y devuelven
-/// cosas distintas —una el resultado de la evaluación de esa bobina, la otra el
-/// listado actualizado—, por eso son dos métodos y no un parámetro booleano.
+/// cosas distintas (una el resultado de la evaluación de esa bobina, la otra el
+/// listado actualizado), por eso son dos métodos y no un parámetro booleano.
 /// </summary>
 public interface IBobinaService
 {

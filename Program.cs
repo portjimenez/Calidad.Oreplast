@@ -30,7 +30,7 @@ builder.Services.AddScoped<IAccesoActualInfo, AccesoActualInfo>();
 builder.Services.AddScoped<IUsuarioActual, UsuarioActual>();
 builder.Services.AddScoped<IContextoAuditoria, ContextoAuditoria>();
 
-// Módulo 2 — Inspección en proceso. EjecutorSp baja a ADO.NET porque varios
+// Módulo 2 - Inspección en proceso. EjecutorSp baja a ADO.NET porque varios
 // procedimientos devuelven más de un conjunto de resultados y EF Core solo lee el primero.
 builder.Services.AddScoped<EjecutorSp>();
 builder.Services.AddScoped<IRegistroInspeccionService, RegistroInspeccionService>();

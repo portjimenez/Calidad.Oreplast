@@ -7,8 +7,8 @@ namespace calidad_app.Services.Seguridad;
 /// Enriquece el HttpContext.User inmediatamente después de la autenticación (Negotiate en
 /// producción, el esquema "Simulacion" en desarrollo) contra seg.Usuario: agrega el rol y los
 /// permisos como claims, o lo reduce a anónimo si la cuenta no está registrada o está inactiva.
-/// Corre ANTES de la autorización, así que AuthorizeRouteView/FallbackPolicy —y por lo tanto
-/// AccesoNoAutorizado— ven siempre la decisión real, incluso en la primera carga de página.
+/// Corre ANTES de la autorización, así que AuthorizeRouteView/FallbackPolicy (y por lo tanto
+/// AccesoNoAutorizado) ven siempre la decisión real, incluso en la primera carga de página.
 /// </summary>
 public class SegUsuarioClaimsTransformation(
     IAuthService authService, IHttpContextAccessor httpContextAccessor) : IClaimsTransformation
