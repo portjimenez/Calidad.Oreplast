@@ -4,6 +4,7 @@
 @using calidad_app.Services.Calidad
 @attribute [Authorize(Policy = "VER_ALERTAS")]
 @inject IAlertaService ServicioAlertas
+@inject NavigationManager Navegacion
 
 <PageTitle>Alertas de proceso</PageTitle>
 
@@ -296,11 +297,22 @@
                                               @onchange="e => _observacion = e.Value?.ToString() ?? string.Empty"></textarea>
                                     <div class="atencion__acciones">
                                         <span class="atencion__conteo">@TextoSeleccion</span>
-                                        <button type="button" class="boton boton--primario"
-                                                disabled="@(_atendiendo || string.IsNullOrWhiteSpace(_observacion))"
-                                                @onclick="AtenderAsync">
-                                            @(_atendiendo ? "Guardando…" : TextoBotonAtender)
-                                        </button>
+                                        <div class="atencion__botones">
+                                            @* La desviación que se repite no se cierra con una
+                                               observación: se escala. El formulario de la NC llega
+                                               con el registro, el área y la descripción ya
+                                               propuestos desde esta alerta. *@
+                                            <button type="button" class="boton boton--fantasma"
+                                                    disabled="@_atendiendo"
+                                                    @onclick="EscalarANoConformidad">
+                                                Levantar no conformidad
+                                            </button>
+                                            <button type="button" class="boton boton--primario"
+                                                    disabled="@(_atendiendo || string.IsNullOrWhiteSpace(_observacion))"
+                                                    @onclick="AtenderAsync">
+                                                @(_atendiendo ? "Guardando…" : TextoBotonAtender)
+                                            </button>
+                                        </div>
                                     </div>
                                 </section>
                             </Authorized>
@@ -400,6 +412,19 @@
         finally
         {
             _cargandoDetalle = false;
+        }
+    }
+
+    /// <summary>
+    /// Lleva al alta de no conformidad con esta alerta como origen. No se
+    /// atiende la alerta al escalar: quedará vinculada a la NC y se cierra
+    /// cuando Calidad disponga sobre ella, que puede ser en otro momento.
+    /// </summary>
+    private void EscalarANoConformidad()
+    {
+        if (_detalle is not null)
+        {
+            Navegacion.NavigateTo($"/no-conformidades?alerta={_detalle.AlertaId}");
         }
     }
 

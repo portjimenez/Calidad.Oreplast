@@ -104,6 +104,24 @@ public static class ComandoExtensiones
         return comando;
     }
 
+    /// <summary>
+    /// Agrega un parámetro de texto donde la cadena vacía SÍ es un valor.
+    ///
+    /// <see cref="Con"/> convierte "" en DBNull, que en casi todos los
+    /// procedimientos significa "no cambiar este campo". Pero unos pocos
+    /// distinguen las dos cosas: null es "no cambiar" y "" es "vaciar el
+    /// campo" (así se borra una causa raíz mal escrita). Para esos se usa
+    /// este método.
+    /// </summary>
+    public static DbCommand ConTextoVaciable(this DbCommand comando, string nombre, string? valor)
+    {
+        var parametro = comando.CreateParameter();
+        parametro.ParameterName = nombre;
+        parametro.Value = valor is null ? DBNull.Value : valor;
+        comando.Parameters.Add(parametro);
+        return comando;
+    }
+
     private static object Normalizar(object? valor) => valor switch
     {
         null => DBNull.Value,

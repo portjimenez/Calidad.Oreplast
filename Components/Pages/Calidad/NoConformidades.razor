@@ -1,0 +1,885 @@
+@page "/no-conformidades"
+@using Microsoft.AspNetCore.Components.Forms
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@attribute [Authorize(Policy = "REGISTRAR_NOCONFORMIDAD")]
+@inject INoConformidadService Servicio
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>No conformidades</PageTitle>
+
+<MaestroDetalle>
+    <Maestro>
+        <PanelCard Titulo="No conformidades">
+            <div class="filtros">
+                <input type="search" class="filtros__busqueda"
+                       placeholder="Código, orden o descripción…"
+                       value="@_filtro.Busqueda"
+                       @onchange="BuscarAsync" />
+                <label class="filtros__check">
+                    <input type="checkbox"
+                           checked="@_filtro.SoloAbiertas"
+                           @onchange="CambiarSoloAbiertasAsync" />
+                    Solo abiertas
+                </label>
+                <select class="filtros__select" value="@(_filtro.SeveridadId ?? 0)"
+                        @onchange="CambiarSeveridadAsync">
+                    <option value="0">Toda severidad</option>
+                    @foreach (var severidad in _catalogos.Severidades)
+                    {
+                        <option value="@severidad.SeveridadId">@TextoSeveridad(severidad.Nombre)</option>
+                    }
+                </select>
+                <select class="filtros__select" value="@(_filtro.AreaId ?? 0)"
+                        @onchange="CambiarAreaAsync">
+                    <option value="0">Todas las áreas</option>
+                    @foreach (var area in _catalogos.Areas)
+                    {
+                        <option value="@area.AreaId">@area.Nombre</option>
+                    }
+                </select>
+                <button type="button" class="boton boton--primario filtros__nuevo"
+                        @onclick="AbrirAlta">
+                    Nueva no conformidad
+                </button>
+            </div>
+
+            <table class="tabla-maestro">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Defecto</th>
+                        <th>Severidad</th>
+                        <th>Estado</th>
+                        <th class="tabla-maestro__num">Días</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_cargandoLista)
+                    {
+                        <tr><td colspan="5" class="tabla-maestro__vacio">Cargando no conformidades…</td></tr>
+                    }
+                    else if (_lista.Count == 0)
+                    {
+                        <tr><td colspan="5" class="tabla-maestro__vacio">Sin no conformidades que coincidan.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var nc in _lista)
+                        {
+                            <tr class="@ClaseFila(nc)" @onclick="() => SeleccionarAsync(nc.NoConformidadId)">
+                                <td>
+                                    <span class="tabla-maestro__principal">@nc.Codigo</span>
+                                    <span class="tabla-maestro__secundario">@nc.AreaNombre</span>
+                                </td>
+                                <td>
+                                    @nc.TipoDefectoNombre
+                                    <span class="tabla-maestro__secundario">
+                                        @(string.IsNullOrEmpty(nc.NumeroOP) ? "Sin orden" : nc.NumeroOP)
+                                    </span>
+                                </td>
+                                <td>
+                                    <EstadoChip Texto="@TextoSeveridad(nc.SeveridadNombre)"
+                                                Tono="@TonoSeveridad(nc.SeveridadNombre)" />
+                                </td>
+                                <td>
+                                    @TextoEstado(nc.EstadoNombre)
+                                    @if (!nc.EsFinal && !nc.ListaParaCerrar)
+                                    {
+                                        <span class="tabla-maestro__secundario">Análisis incompleto</span>
+                                    }
+                                </td>
+                                <td class="tabla-maestro__num">@nc.DiasAbierta</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </PanelCard>
+    </Maestro>
+    <Detalle>
+        <PanelCard Titulo="@TituloDetalle">
+            <div class="expediente">
+                @if (_error is not null)
+                {
+                    <p class="expediente__error" role="alert">@_error</p>
+                }
+                @if (_aviso is not null)
+                {
+                    <p class="expediente__aviso" role="status">@_aviso</p>
+                }
+
+                @if (_modoAlta)
+                {
+                    <NuevaNoConformidadForm Catalogos="_catalogos"
+                                            AlertaId="AlertaOrigen"
+                                            OnCreada="NoConformidadCreadaAsync"
+                                            OnCancelar="CancelarAlta" />
+                }
+                else if (_detalle is null)
+                {
+                    <p class="expediente__placeholder">
+                        @(_cargandoDetalle
+                            ? "Cargando el expediente…"
+                            : "Seleccione una no conformidad de la lista para ver su expediente.")
+                    </p>
+                }
+                else
+                {
+                    <div class="cabecera">
+                        <div class="cabecera__identidad">
+                            <span class="cabecera__codigo">@_detalle.Codigo</span>
+                            <EstadoChip Texto="@TextoSeveridad(_detalle.SeveridadNombre)"
+                                        Tono="@TonoSeveridad(_detalle.SeveridadNombre)" />
+                            <EstadoChip Texto="@TextoEstado(_detalle.EstadoNombre)"
+                                        Tono="@TonoEstado(_detalle)" />
+                        </div>
+                        <span class="cabecera__meta">
+                            @_detalle.TipoDefectoNombre · @_detalle.AreaNombre ·
+                            abierta hace @_detalle.DiasAbierta días por @_detalle.RegistradaPorNombre
+                        </span>
+                    </div>
+
+                    <TabStrip Pestanas="_pestanas" @bind-PestanaActiva="_pestanaActiva" />
+
+                    <div class="expediente__cuerpo">
+                        @if (_pestanaActiva == "expediente")
+                        {
+                            <div class="contexto">
+                                <div class="contexto__campo">
+                                    <span>Orden</span>
+                                    <strong>@Valor(_detalle.NumeroOP)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Cliente</span>
+                                    <strong>@Valor(_detalle.ClienteNombre)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Producto</span>
+                                    <strong>@Valor(_detalle.ProductoCodigo)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Registro</span>
+                                    <strong>@Valor(_detalle.IdRegistro)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Máquina</span>
+                                    <strong>@Valor(_detalle.MaquinaCodigo)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Turno</span>
+                                    <strong>@Valor(_detalle.TurnoNombre)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Operador</span>
+                                    <strong>@Valor(_detalle.OperadorNombre)</strong>
+                                </div>
+                                <div class="contexto__campo">
+                                    <span>Responsable</span>
+                                    <strong>@(_detalle.ResponsableNombre ?? "Sin asignar")</strong>
+                                </div>
+                            </div>
+
+                            <section class="bloque">
+                                <h3 class="bloque__titulo">Descripción del hallazgo</h3>
+                                <p class="bloque__texto">@_detalle.Descripcion</p>
+                            </section>
+
+                            <section class="bloque">
+                                <h3 class="bloque__titulo">Análisis</h3>
+                                <p class="bloque__pista">
+                                    Las dos casillas son obligatorias para cerrar la no conformidad:
+                                    cerrarla sin decir por qué ocurrió ni qué se hizo la deja sin valor
+                                    como evidencia.
+                                </p>
+
+                                @if (_puedeGestionar && _detalle.EsEditable)
+                                {
+                                    <label class="campo">
+                                        <span>Causa raíz</span>
+                                        <textarea rows="3" maxlength="1000"
+                                                  placeholder="Por qué ocurrió…"
+                                                  value="@_edicion.CausaRaiz"
+                                                  @onchange="e => _edicion.CausaRaiz = e.Value?.ToString() ?? string.Empty"></textarea>
+                                    </label>
+                                    <label class="campo">
+                                        <span>Acción correctiva</span>
+                                        <textarea rows="3" maxlength="1000"
+                                                  placeholder="Qué se hizo para que no vuelva a ocurrir…"
+                                                  value="@_edicion.AccionCorrectiva"
+                                                  @onchange="e => _edicion.AccionCorrectiva = e.Value?.ToString() ?? string.Empty"></textarea>
+                                    </label>
+                                    <label class="campo">
+                                        <span>Responsable del seguimiento</span>
+                                        <select value="@(_edicion.ResponsableId ?? 0)"
+                                                @onchange="e => _edicion.ResponsableId = LeerEnteroNulo(e)">
+                                            <option value="0">Sin asignar</option>
+                                            @foreach (var responsable in _catalogos.Responsables)
+                                            {
+                                                <option value="@responsable.UsuarioId">@responsable.Etiqueta</option>
+                                            }
+                                        </select>
+                                    </label>
+                                    <div class="bloque__acciones">
+                                        <button type="button" class="boton boton--primario"
+                                                disabled="@_guardando"
+                                                @onclick="GuardarAnalisisAsync">
+                                            @(_guardando ? "Guardando…" : "Guardar análisis")
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="campo campo--lectura">
+                                        <span>Causa raíz</span>
+                                        <p>@(_detalle.CausaRaiz ?? "Sin registrar")</p>
+                                    </div>
+                                    <div class="campo campo--lectura">
+                                        <span>Acción correctiva</span>
+                                        <p>@(_detalle.AccionCorrectiva ?? "Sin registrar")</p>
+                                    </div>
+                                }
+                            </section>
+
+                            <section class="bloque">
+                                <h3 class="bloque__titulo">Estado</h3>
+                                @if (_detalle.EsFinal)
+                                {
+                                    <p class="bloque__pista">
+                                        La no conformidad está @TextoEstado(_detalle.EstadoNombre).
+                                        Un expediente cerrado no se reabre: si el problema vuelve a
+                                        ocurrir se levanta una nueva, y así la reincidencia queda
+                                        visible en los indicadores.
+                                    </p>
+                                }
+                                else if (!_puedeGestionar)
+                                {
+                                    <p class="bloque__pista">
+                                        Solo Ingeniería de Calidad puede mover el estado.
+                                    </p>
+                                }
+                                else if (_detalle.EstadosDisponibles.Count == 0)
+                                {
+                                    <p class="bloque__pista">No hay transiciones disponibles.</p>
+                                }
+                                else
+                                {
+                                    <label class="campo">
+                                        <span>Observación del movimiento</span>
+                                        <textarea rows="2" maxlength="1000"
+                                                  placeholder="Obligatoria para anular…"
+                                                  value="@_observacionEstado"
+                                                  @onchange="e => _observacionEstado = e.Value?.ToString() ?? string.Empty"></textarea>
+                                    </label>
+                                    <div class="bloque__acciones">
+                                        @foreach (var estado in _detalle.EstadosDisponibles)
+                                        {
+                                            <button type="button"
+                                                    class="boton @(estado.EsFinal ? "boton--primario" : "boton--fantasma")"
+                                                    disabled="@_guardando"
+                                                    @onclick="() => CambiarEstadoAsync(estado.EstadoId)">
+                                                @TextoAccion(estado)
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </section>
+                        }
+                        else if (_pestanaActiva == "historial")
+                        {
+                            <p class="bloque__pista">
+                                El historial es la prueba de que la no conformidad se gestionó y no
+                                solo se registró.
+                            </p>
+                            <ol class="linea-tiempo">
+                                @foreach (var paso in _detalle.Historial)
+                                {
+                                    <li class="linea-tiempo__paso">
+                                        <div class="linea-tiempo__cabecera">
+                                            <strong>@TextoEstado(paso.EstadoNombre)</strong>
+                                            <span>@paso.FechaCambio.ToString("dd/MM/yyyy HH:mm")</span>
+                                        </div>
+                                        <span class="linea-tiempo__autor">@paso.UsuarioNombre</span>
+                                        @if (!string.IsNullOrWhiteSpace(paso.Observacion))
+                                        {
+                                            <p class="linea-tiempo__observacion">@paso.Observacion</p>
+                                        }
+                                    </li>
+                                }
+                            </ol>
+                        }
+                        else if (_pestanaActiva == "evidencias")
+                        {
+                            @if (_detalle.Evidencias.Count == 0)
+                            {
+                                <p class="bloque__vacio">Sin evidencias adjuntas.</p>
+                            }
+                            else
+                            {
+                                <table class="tabla-bloque">
+                                    <thead>
+                                        <tr>
+                                            <th>Archivo</th>
+                                            <th>Tamaño</th>
+                                            <th>Cargada</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var evidencia in _detalle.Evidencias)
+                                        {
+                                            <tr>
+                                                <td>@evidencia.NombreArchivo</td>
+                                                <td>@evidencia.TamanoTexto</td>
+                                                <td>@evidencia.FechaCarga.ToString("dd/MM/yyyy HH:mm")</td>
+                                                <td class="tabla-bloque__acciones">
+                                                    @if (evidencia.TieneArchivo)
+                                                    {
+                                                        <button type="button" class="boton boton--fantasma"
+                                                                disabled="@_guardando"
+                                                                @onclick="() => DescargarAsync(evidencia)">
+                                                            Descargar
+                                                        </button>
+                                                    }
+                                                    @if (_puedeGestionar && _detalle.EsEditable)
+                                                    {
+                                                        <button type="button" class="boton boton--enlace-peligro"
+                                                                disabled="@_guardando"
+                                                                @onclick="() => EliminarEvidenciaAsync(evidencia)">
+                                                            Eliminar
+                                                        </button>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+
+                            @if (_puedeGestionar && _detalle.EsEditable)
+                            {
+                                <section class="bloque">
+                                    <h3 class="bloque__titulo">Adjuntar evidencia</h3>
+                                    <p class="bloque__pista">
+                                        Imágenes o documentos de hasta @(MaxBytes / (1024 * 1024)) MB.
+                                        El archivo se guarda en la base, así que el respaldo lo incluye.
+                                    </p>
+                                    <InputFile OnChange="SubirEvidenciaAsync" disabled="@_guardando" />
+                                </section>
+                            }
+                        }
+                        else if (_pestanaActiva == "producto")
+                        {
+                            <section class="bloque">
+                                <h3 class="bloque__titulo">
+                                    Bobinas afectadas (@_detalle.Bobinas.Count)
+                                </h3>
+                                <p class="bloque__pista">
+                                    Marcar una bobina aquí la deja como no conforme: es en este módulo
+                                    donde se decide la conformidad del producto, no en la captura.
+                                </p>
+                                @if (_detalle.Bobinas.Count == 0)
+                                {
+                                    <p class="bloque__vacio">Ninguna bobina marcada por esta no conformidad.</p>
+                                }
+                                else
+                                {
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Registro</th>
+                                                <th>Bobina</th>
+                                                <th class="tabla-bloque__num">Peso</th>
+                                                <th>Lote</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var bobina in _detalle.Bobinas)
+                                            {
+                                                <tr>
+                                                    <td>@bobina.IdRegistro</td>
+                                                    <td>@bobina.IdBobi</td>
+                                                    <td class="tabla-bloque__num">@Formato(bobina.Peso) kg</td>
+                                                    <td>@(bobina.CodigoLote ?? "Sin lote")</td>
+                                                    <td class="tabla-bloque__acciones">
+                                                        @if (_puedeGestionar && _detalle.EsEditable)
+                                                        {
+                                                            <button type="button" class="boton boton--enlace-peligro"
+                                                                    disabled="@_guardando"
+                                                                    @onclick="() => DesvincularBobinaAsync(bobina)">
+                                                                Liberar
+                                                            </button>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            </section>
+
+                            <section class="bloque">
+                                <h3 class="bloque__titulo">
+                                    Alertas vinculadas (@_detalle.Alertas.Count)
+                                </h3>
+                                @if (_detalle.Alertas.Count == 0)
+                                {
+                                    <p class="bloque__vacio">Sin alertas de proceso vinculadas.</p>
+                                }
+                                else
+                                {
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Parámetro</th>
+                                                <th>Origen</th>
+                                                <th class="tabla-bloque__num">Valor</th>
+                                                <th>Detectada</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var alerta in _detalle.Alertas)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        @alerta.ParametroNombre
+                                                        @if (alerta.EsCritico)
+                                                        {
+                                                            <EstadoChip Texto="Crítico" Tono="TonoChip.Peligro" />
+                                                        }
+                                                    </td>
+                                                    <td>@alerta.IdRegistro · @alerta.OrigenTexto</td>
+                                                    <td class="tabla-bloque__num">
+                                                        @Formato(alerta.ValorRegistrado) @alerta.Unidad
+                                                    </td>
+                                                    <td>@alerta.FechaDeteccion.ToString("dd/MM/yyyy HH:mm")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            </section>
+                        }
+                    </div>
+                }
+            </div>
+        </PanelCard>
+    </Detalle>
+</MaestroDetalle>
+
+@code {
+    /// <summary>Alerta desde la que se levanta la NC, al llegar desde el monitor.</summary>
+    [SupplyParameterFromQuery(Name = "alerta")]
+    private int? AlertaOrigen { get; set; }
+
+    /// <summary>No conformidad a abrir al entrar.</summary>
+    [SupplyParameterFromQuery(Name = "nc")]
+    private int? NoConformidadInicial { get; set; }
+
+    /// <summary>
+    /// Tope del adjunto. Blazor rechaza por defecto los archivos grandes en
+    /// OpenReadStream; el límite se declara aquí para poder avisar antes de
+    /// intentar leerlo.
+    /// </summary>
+    private const long MaxBytes = 8 * 1024 * 1024;
+
+    private readonly FiltroNoConformidades _filtro = new();
+    private readonly List<TabItem> _pestanas =
+    [
+        new("expediente", "Expediente"),
+        new("historial", "Historial"),
+        new("evidencias", "Evidencias"),
+        new("producto", "Producto afectado")
+    ];
+
+    private CatalogosNoConformidad _catalogos = new();
+    private List<NoConformidadResumen> _lista = [];
+    private NoConformidadDetalle? _detalle;
+    private EdicionAnalisis _edicion = new();
+
+    private string _pestanaActiva = "expediente";
+    private string _observacionEstado = string.Empty;
+    private bool _modoAlta;
+    private bool _puedeGestionar;
+
+    private bool _cargandoLista = true;
+    private bool _cargandoDetalle;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private IJSObjectReference? _descargas;
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is not null)
+        {
+            var estado = await EstadoAutenticacion;
+            _puedeGestionar = estado.User.HasClaim("permiso", "GESTIONAR_NOCONFORMIDAD");
+        }
+
+        _catalogos = await Servicio.ObtenerCatalogosAsync();
+        await CargarListaAsync();
+
+        // Llegar con ?alerta= significa "levanta una NC por esta alerta".
+        if (AlertaOrigen is not null)
+        {
+            _modoAlta = true;
+        }
+        else if (NoConformidadInicial is { } id)
+        {
+            await SeleccionarAsync(id);
+        }
+    }
+
+    private async Task CargarListaAsync()
+    {
+        _cargandoLista = true;
+        _error = null;
+
+        try
+        {
+            _lista = await Servicio.ListarAsync(_filtro);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoLista = false;
+        }
+    }
+
+    private async Task SeleccionarAsync(int noConformidadId)
+    {
+        _modoAlta = false;
+        _cargandoDetalle = true;
+        _error = null;
+        _aviso = null;
+        _observacionEstado = string.Empty;
+
+        try
+        {
+            AplicarDetalle(await Servicio.ObtenerAsync(noConformidadId));
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    /// <summary>
+    /// Los procedimientos de escritura devuelven el expediente completo, así
+    /// que tras cada cambio la pantalla se refresca con lo que la base aceptó,
+    /// no con lo que la pantalla creía haber enviado.
+    /// </summary>
+    private void AplicarDetalle(NoConformidadDetalle? detalle)
+    {
+        _detalle = detalle;
+        _edicion = EdicionAnalisis.Desde(detalle);
+    }
+
+    private async Task GuardarAnalisisAsync()
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            AplicarDetalle(await Servicio.ActualizarAsync(
+                _detalle.NoConformidadId,
+                causaRaiz: _edicion.CausaRaiz,
+                accionCorrectiva: _edicion.AccionCorrectiva,
+                responsableId: _edicion.ResponsableId));
+
+            _aviso = "Análisis guardado.";
+        });
+    }
+
+    private async Task CambiarEstadoAsync(int estadoId)
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            AplicarDetalle(await Servicio.CambiarEstadoAsync(
+                _detalle.NoConformidadId, estadoId, Vacio(_observacionEstado)));
+
+            _observacionEstado = string.Empty;
+            _aviso = $"La no conformidad pasó a {TextoEstado(_detalle?.EstadoNombre ?? string.Empty)}.";
+
+            await CargarListaAsync();
+        });
+    }
+
+    private async Task DesvincularBobinaAsync(BobinaAfectada bobina)
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            AplicarDetalle(await Servicio.VincularBobinasAsync(
+                _detalle.NoConformidadId, [bobina.BobinaId], vincular: false));
+
+            _aviso = $"La bobina {bobina.IdBobi} vuelve a estar conforme.";
+        });
+    }
+
+    private async Task SubirEvidenciaAsync(InputFileChangeEventArgs e)
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        var archivo = e.File;
+
+        if (archivo.Size > MaxBytes)
+        {
+            _error = $"El archivo pesa {archivo.Size / (1024 * 1024)} MB y el máximo es " +
+                     $"{MaxBytes / (1024 * 1024)} MB.";
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            using var memoria = new MemoryStream();
+            await archivo.OpenReadStream(MaxBytes).CopyToAsync(memoria);
+
+            await Servicio.GuardarEvidenciaAsync(
+                _detalle.NoConformidadId, archivo.Name, memoria.ToArray());
+
+            AplicarDetalle(await Servicio.ObtenerAsync(_detalle.NoConformidadId));
+            _aviso = $"Se adjuntó \"{archivo.Name}\".";
+        });
+    }
+
+    private async Task EliminarEvidenciaAsync(EvidenciaNc evidencia)
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        await EjecutarAsync(async () =>
+        {
+            await Servicio.EliminarEvidenciaAsync(evidencia.EvidenciaId);
+
+            AplicarDetalle(await Servicio.ObtenerAsync(_detalle.NoConformidadId));
+            _aviso = $"Se eliminó \"{evidencia.NombreArchivo}\".";
+        });
+    }
+
+    /// <summary>
+    /// La descarga sale del circuito y no de un endpoint HTTP para que el
+    /// procedimiento pueda registrar en bitácora quién se llevó la evidencia:
+    /// dentro del componente la identidad del usuario ya está resuelta.
+    /// </summary>
+    private async Task DescargarAsync(EvidenciaNc evidencia)
+    {
+        await EjecutarAsync(async () =>
+        {
+            var archivo = await Servicio.ObtenerArchivoEvidenciaAsync(evidencia.EvidenciaId);
+
+            if (archivo?.Contenido is null)
+            {
+                _error = "La evidencia no tiene un archivo almacenado.";
+                return;
+            }
+
+            _descargas ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descargas.js");
+
+            using var contenido = new MemoryStream(archivo.Contenido);
+            using var referencia = new DotNetStreamReference(contenido);
+
+            await _descargas.InvokeVoidAsync("descargarArchivo", archivo.NombreArchivo, referencia);
+        });
+    }
+
+    /// <summary>Envoltura común de las acciones: banderas, avisos y traducción del error.</summary>
+    private async Task EjecutarAsync(Func<Task> accion)
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await accion();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void AbrirAlta()
+    {
+        _modoAlta = true;
+        _detalle = null;
+        _error = null;
+        _aviso = null;
+    }
+
+    private void CancelarAlta()
+    {
+        _modoAlta = false;
+        AlertaOrigen = null;
+    }
+
+    private async Task NoConformidadCreadaAsync(NoConformidadCreada creada)
+    {
+        _modoAlta = false;
+        AlertaOrigen = null;
+
+        await CargarListaAsync();
+        await SeleccionarAsync(creada.NoConformidadId);
+
+        _aviso = $"Se registró la no conformidad {creada.Codigo}.";
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _filtro.Busqueda = e.Value?.ToString();
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarSoloAbiertasAsync(ChangeEventArgs e)
+    {
+        _filtro.SoloAbiertas = e.Value is true;
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarSeveridadAsync(ChangeEventArgs e)
+    {
+        _filtro.SeveridadId = LeerEnteroNulo(e);
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarAreaAsync(ChangeEventArgs e)
+    {
+        _filtro.AreaId = LeerEnteroNulo(e);
+        await CargarListaAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_descargas is not null)
+        {
+            try
+            {
+                await _descargas.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // El circuito ya se cerró: no hay módulo que liberar.
+            }
+        }
+    }
+
+    private string TituloDetalle =>
+        _modoAlta ? "Nueva no conformidad"
+        : _detalle is null ? "Expediente"
+        : $"Expediente {_detalle.Codigo}";
+
+    private string ClaseFila(NoConformidadResumen nc) =>
+        nc.NoConformidadId == _detalle?.NoConformidadId
+            ? "tabla-maestro__fila--seleccionada"
+            : string.Empty;
+
+    /// <summary>
+    /// Texto del botón de transición. Se redacta desde el estado destino
+    /// porque "Cerrar" se entiende mejor que "Pasar a Cerrada".
+    /// </summary>
+    private static string TextoAccion(EstadoNcDisponible estado) => estado.Nombre switch
+    {
+        "EnAnalisis" => "Iniciar análisis",
+        "AccionImplementada" => "Marcar acción implementada",
+        "Cerrada" => "Cerrar no conformidad",
+        "Anulada" => "Anular",
+        "Registrada" => "Devolver a registrada",
+        var otro => otro
+    };
+
+    private static string TextoEstado(string estado) => estado switch
+    {
+        "EnAnalisis" => "En análisis",
+        "AccionImplementada" => "Acción implementada",
+        var otro => otro
+    };
+
+    private static string TextoSeveridad(string severidad) => severidad switch
+    {
+        "Critica" => "Crítica",
+        var otra => otra
+    };
+
+    private static TonoChip TonoSeveridad(string severidad) => severidad switch
+    {
+        "Critica" => TonoChip.Peligro,
+        "Mayor" => TonoChip.Advertencia,
+        _ => TonoChip.Neutro
+    };
+
+    private static TonoChip TonoEstado(NoConformidadDetalle nc) => nc.EstadoNombre switch
+    {
+        "Cerrada" => TonoChip.Exito,
+        "Anulada" => TonoChip.Neutro,
+        _ => TonoChip.Advertencia
+    };
+
+    private static string Valor(string texto) => string.IsNullOrWhiteSpace(texto) ? "-" : texto;
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "-";
+
+    private static string? Vacio(string texto) => string.IsNullOrWhiteSpace(texto) ? null : texto;
+
+    private static int? LeerEnteroNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) && valor > 0 ? valor : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+
+    /// <summary>
+    /// Análisis mientras se edita. Se trabaja sobre una copia para que la
+    /// pantalla no muestre cambios que la base todavía no aceptó.
+    /// </summary>
+    private sealed class EdicionAnalisis
+    {
+        public string CausaRaiz { get; set; } = string.Empty;
+        public string AccionCorrectiva { get; set; } = string.Empty;
+        public int? ResponsableId { get; set; }
+
+        public static EdicionAnalisis Desde(NoConformidadDetalle? nc) => new()
+        {
+            CausaRaiz = nc?.CausaRaiz ?? string.Empty,
+            AccionCorrectiva = nc?.AccionCorrectiva ?? string.Empty,
+            ResponsableId = nc?.ResponsableId
+        };
+    }
+}

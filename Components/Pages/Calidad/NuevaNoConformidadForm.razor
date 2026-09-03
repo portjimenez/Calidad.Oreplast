@@ -1,0 +1,240 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@inject INoConformidadService NoConformidades
+@inject IAlertaService ServicioAlertas
+
+@*
+    Alta de una no conformidad.
+
+    Puede abrirse en blanco o a partir de una alerta de proceso. En el segundo
+    caso llega con el área, el registro y la descripción ya propuestos, y al
+    guardar la alerta queda vinculada a la NC: es el camino natural entre
+    "detecté una desviación" y "abro un hallazgo formal", y evita que el
+    ingeniero vuelva a teclear datos que el sistema ya tiene.
+*@
+
+<div class="alta">
+    @if (_error is not null)
+    {
+        <p class="alta__error" role="alert">@_error</p>
+    }
+
+    @if (_alerta is not null)
+    {
+        <div class="alta__origen">
+            <span class="alta__origen-titulo">Se levanta a partir de una alerta de proceso</span>
+            <span class="alta__origen-detalle">
+                @_alerta.ParametroNombre: @Formato(_alerta.ValorRegistrado) @_alerta.Unidad
+                (rango @_alerta.RangoTexto) · @_alerta.NumeroOP · @_alerta.MaquinaCodigo
+                · @_alerta.OrigenTexto
+            </span>
+        </div>
+    }
+
+    <div class="alta__fila">
+        <label class="campo">
+            <span>Área</span>
+            <select value="@_datos.AreaId" @onchange="CambiarAreaAsync">
+                <option value="0">Seleccione...</option>
+                @foreach (var area in Catalogos.Areas)
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+        </label>
+
+        <label class="campo">
+            <span>Severidad</span>
+            <select value="@_datos.SeveridadId"
+                    @onchange="e => _datos.SeveridadId = LeerEntero(e)">
+                <option value="0">Seleccione...</option>
+                @foreach (var severidad in Catalogos.Severidades)
+                {
+                    <option value="@severidad.SeveridadId">@TextoSeveridad(severidad.Nombre)</option>
+                }
+            </select>
+        </label>
+    </div>
+
+    <label class="campo">
+        <span>Tipo de defecto</span>
+        <select value="@_datos.TipoDefectoId"
+                @onchange="e => _datos.TipoDefectoId = LeerEntero(e)">
+            <option value="0">Seleccione...</option>
+            @foreach (var grupo in TiposAplicables.GroupBy(t => t.Grupo))
+            {
+                <optgroup label="@grupo.Key">
+                    @foreach (var tipo in grupo)
+                    {
+                        <option value="@tipo.TipoDefectoId">@tipo.Nombre</option>
+                    }
+                </optgroup>
+            }
+        </select>
+    </label>
+
+    <label class="campo">
+        <span>Descripción del hallazgo</span>
+        <textarea rows="3" maxlength="1000"
+                  placeholder="Qué se encontró, dónde y en qué condiciones…"
+                  value="@_datos.Descripcion"
+                  @onchange="e => _datos.Descripcion = e.Value?.ToString() ?? string.Empty"></textarea>
+    </label>
+
+    <label class="campo">
+        <span>Responsable del seguimiento (opcional)</span>
+        <select value="@(_datos.ResponsableId ?? 0)"
+                @onchange="e => _datos.ResponsableId = LeerEnteroNulo(e)">
+            <option value="0">Sin asignar</option>
+            @foreach (var responsable in Catalogos.Responsables)
+            {
+                <option value="@responsable.UsuarioId">@responsable.Etiqueta</option>
+            }
+        </select>
+    </label>
+
+    <p class="alta__nota">
+        La causa raíz y la acción correctiva se registran durante el análisis.
+        No hacen falta ahora, pero sin ellas la no conformidad no se podrá cerrar.
+    </p>
+
+    <div class="alta__acciones">
+        <button type="button" class="boton boton--fantasma" @onclick="OnCancelar">Cancelar</button>
+        <button type="button" class="boton boton--primario"
+                disabled="@(_guardando || !EsValido)"
+                @onclick="GuardarAsync">
+            @(_guardando ? "Guardando…" : "Registrar no conformidad")
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CatalogosNoConformidad Catalogos { get; set; } = new();
+
+    /// <summary>Alerta de origen, cuando se llega desde el monitor de alertas.</summary>
+    [Parameter] public int? AlertaId { get; set; }
+
+    [Parameter] public EventCallback<NoConformidadCreada> OnCreada { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private readonly NuevaNoConformidad _datos = new();
+    private AlertaDetalle? _alerta;
+    private bool _guardando;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AlertaId is not { } id)
+        {
+            return;
+        }
+
+        try
+        {
+            _alerta = await ServicioAlertas.ObtenerAsync(id);
+
+            if (_alerta is null)
+            {
+                return;
+            }
+
+            // Se propone, no se impone: el ingeniero puede cambiar cualquiera de
+            // estos campos antes de guardar.
+            _datos.AlertaIds.Add(id);
+            _datos.RegistroId = _alerta.RegistroId;
+            _datos.AreaId = _alerta.AreaId;
+            _datos.SeveridadId = SeveridadPropuesta();
+            _datos.Descripcion =
+                $"El parámetro {_alerta.ParametroNombre} ({_alerta.ParametroCodigo}) se midió en " +
+                $"{Formato(_alerta.ValorRegistrado)} {_alerta.Unidad}, fuera del rango " +
+                $"{_alerta.RangoTexto} que define la ficha técnica.";
+
+            // La bobina medida queda propuesta como afectada: si la desviación
+            // se tomó sobre una bobina concreta, es esa la que está en duda.
+            if (_alerta.BobinaId is { } bobinaId)
+            {
+                _datos.BobinaIds.Add(bobinaId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    /// <summary>
+    /// Un parámetro marcado como crítico en la ficha propone severidad Crítica;
+    /// el resto, Mayor. Es una propuesta razonable que ahorra un clic, no una
+    /// regla: la severidad la decide quien registra.
+    /// </summary>
+    private int SeveridadPropuesta()
+    {
+        var buscado = _alerta?.EsCritico == true ? "Critica" : "Mayor";
+
+        return Catalogos.Severidades
+            .FirstOrDefault(s => s.Nombre == buscado)?.SeveridadId ?? 0;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+
+        try
+        {
+            var creada = await NoConformidades.CrearAsync(_datos);
+            await OnCreada.InvokeAsync(creada);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private Task CambiarAreaAsync(ChangeEventArgs e)
+    {
+        _datos.AreaId = LeerEnteroNulo(e);
+
+        // Un tipo de defecto de otra área dejaría de tener sentido.
+        if (_datos.TipoDefectoId > 0 &&
+            TiposAplicables.All(t => t.TipoDefectoId != _datos.TipoDefectoId))
+        {
+            _datos.TipoDefectoId = 0;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private IEnumerable<TipoDefectoCatalogo> TiposAplicables => Catalogos.TiposDe(_datos.AreaId);
+
+    private bool EsValido =>
+        _datos.AreaId > 0 &&
+        _datos.SeveridadId > 0 &&
+        _datos.TipoDefectoId > 0 &&
+        !string.IsNullOrWhiteSpace(_datos.Descripcion);
+
+    private static string TextoSeveridad(string nombre) => nombre switch
+    {
+        "Critica" => "Crítica",
+        var otro => otro
+    };
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    private static int? LeerEnteroNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) && valor > 0 ? valor : null;
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "-";
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

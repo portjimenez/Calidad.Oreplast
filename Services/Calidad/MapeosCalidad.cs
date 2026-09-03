@@ -215,4 +215,198 @@ internal static class MapeosCalidad
         TotalBobinas = r.Entero("TotalBobinas"),
         PesoTotal = r.DecimalNulo("PesoTotal")
     };
+
+    /* ---- No conformidades ---- */
+
+    public static NoConformidadResumen NoConformidadResumen(DbDataReader r) => new()
+    {
+        NoConformidadId = r.Entero("NoConformidadId"),
+        Codigo = r.Texto("Codigo"),
+        RegistroId = r.EnteroNulo("RegistroId"),
+        IdRegistro = r.Texto("IdRegistro"),
+        OrdenId = r.EnteroNulo("OrdenId"),
+        NumeroOP = r.Texto("NumeroOP"),
+        ClienteNombre = r.Texto("ClienteNombre"),
+        ProductoCodigo = r.Texto("ProductoCodigo"),
+        ProductoNombre = r.Texto("ProductoNombre"),
+        AreaId = r.Entero("AreaId"),
+        AreaNombre = r.Texto("AreaNombre"),
+        TipoDefectoId = r.Entero("TipoDefectoId"),
+        TipoDefectoNombre = r.Texto("TipoDefectoNombre"),
+        SeveridadId = r.Entero("SeveridadId"),
+        SeveridadNombre = r.Texto("SeveridadNombre"),
+        EstadoActualId = r.Entero("EstadoActualId"),
+        EstadoNombre = r.Texto("EstadoNombre"),
+        EstadoOrden = r.Entero("EstadoOrden"),
+        EsFinal = r.Booleano("EsFinal"),
+        Descripcion = r.Texto("Descripcion"),
+        ResponsableId = r.EnteroNulo("ResponsableId"),
+        ResponsableNombre = r.TextoNulo("ResponsableNombre"),
+        RegistradaPorId = r.Entero("RegistradaPorId"),
+        RegistradaPorNombre = r.Texto("RegistradaPorNombre"),
+        FechaRegistro = r.Fecha("FechaRegistro"),
+        DiasAbierta = r.Entero("DiasAbierta"),
+        TieneCausaRaiz = r.Booleano("TieneCausaRaiz"),
+        TieneAccionCorrectiva = r.Booleano("TieneAccionCorrectiva"),
+        TotalEvidencias = r.Entero("TotalEvidencias"),
+        BobinasAfectadas = r.Entero("BobinasAfectadas"),
+        AlertasVinculadas = r.Entero("AlertasVinculadas")
+    };
+
+    public static NoConformidadDetalle NoConformidadDetalle(DbDataReader r) => new()
+    {
+        NoConformidadId = r.Entero("NoConformidadId"),
+        Codigo = r.Texto("Codigo"),
+        RegistroId = r.EnteroNulo("RegistroId"),
+        IdRegistro = r.Texto("IdRegistro"),
+        FechaRegistroInspeccion = r.SoloFechaNula("FechaRegistroInspeccion"),
+        OrdenId = r.EnteroNulo("OrdenResueltaId"),
+        NumeroOP = r.Texto("NumeroOP"),
+        ClienteId = r.EnteroNulo("ClienteId"),
+        ClienteNombre = r.Texto("ClienteNombre"),
+        ProductoId = r.EnteroNulo("ProductoId"),
+        ProductoCodigo = r.Texto("ProductoCodigo"),
+        ProductoNombre = r.Texto("ProductoNombre"),
+        AreaId = r.Entero("AreaId"),
+        AreaNombre = r.Texto("AreaNombre"),
+        TipoDefectoId = r.Entero("TipoDefectoId"),
+        TipoDefectoNombre = r.Texto("TipoDefectoNombre"),
+        SeveridadId = r.Entero("SeveridadId"),
+        SeveridadNombre = r.Texto("SeveridadNombre"),
+        EstadoActualId = r.Entero("EstadoActualId"),
+        EstadoNombre = r.Texto("EstadoNombre"),
+        EstadoOrden = r.Entero("EstadoOrden"),
+        EsFinal = r.Booleano("EsFinal"),
+        Descripcion = r.Texto("Descripcion"),
+        CausaRaiz = r.TextoNulo("CausaRaiz"),
+        AccionCorrectiva = r.TextoNulo("AccionCorrectiva"),
+        ResponsableId = r.EnteroNulo("ResponsableId"),
+        ResponsableNombre = r.TextoNulo("ResponsableNombre"),
+        RegistradaPorId = r.Entero("RegistradaPorId"),
+        RegistradaPorNombre = r.Texto("RegistradaPorNombre"),
+        FechaRegistro = r.Fecha("FechaRegistro"),
+        DiasAbierta = r.Entero("DiasAbierta"),
+        MaquinaCodigo = r.Texto("MaquinaCodigo"),
+        MaquinaNombre = r.Texto("MaquinaNombre"),
+        TurnoNombre = r.Texto("TurnoNombre"),
+        OperadorNombre = r.Texto("OperadorNombre")
+    };
+
+    public static MovimientoEstadoNc MovimientoEstado(DbDataReader r) => new()
+    {
+        HistorialId = r.Entero("HistorialId"),
+        EstadoId = r.Entero("EstadoId"),
+        EstadoNombre = r.Texto("EstadoNombre"),
+        EsFinal = r.Booleano("EsFinal"),
+        UsuarioId = r.Entero("UsuarioId"),
+        UsuarioNombre = r.Texto("UsuarioNombre"),
+        FechaCambio = r.Fecha("FechaCambio"),
+        Observacion = r.TextoNulo("Observacion")
+    };
+
+    public static EvidenciaNc Evidencia(DbDataReader r) => new()
+    {
+        EvidenciaId = r.Entero("EvidenciaId"),
+        NombreArchivo = r.Texto("NombreArchivo"),
+        Ruta = r.TextoNulo("Ruta"),
+        FechaCarga = r.Fecha("FechaCarga"),
+        TamanoBytes = r.EnteroNulo("TamanoBytes"),
+        TieneArchivo = r.Booleano("TieneArchivo")
+    };
+
+    public static ArchivoEvidencia ArchivoEvidencia(DbDataReader r) => new()
+    {
+        EvidenciaId = r.Entero("EvidenciaId"),
+        NoConformidadId = r.Entero("NoConformidadId"),
+        NoConformidadCodigo = r.Texto("NoConformidadCodigo"),
+        NombreArchivo = r.Texto("NombreArchivo"),
+        Ruta = r.TextoNulo("Ruta"),
+        Contenido = r.Binario("Archivo"),
+        FechaCarga = r.Fecha("FechaCarga"),
+        TamanoBytes = r.EnteroNulo("TamanoBytes")
+    };
+
+    public static BobinaAfectada BobinaAfectada(DbDataReader r) => new()
+    {
+        BobinaId = r.Entero("BobinaId"),
+        RegistroId = r.Entero("RegistroId"),
+        IdRegistro = r.Texto("IdRegistro"),
+        IdBobi = r.Entero("IdBobi"),
+        Peso = r.DecimalNulo("Peso"),
+        Metros = r.DecimalNulo("Metros"),
+        EsConforme = r.Booleano("EsConforme"),
+        LoteId = r.EnteroNulo("LoteId"),
+        CodigoLote = r.TextoNulo("CodigoLote")
+    };
+
+    public static AlertaDeNoConformidad AlertaDeNoConformidad(DbDataReader r) => new()
+    {
+        AlertaId = r.Entero("AlertaId"),
+        RegistroId = r.EnteroNulo("RegistroId"),
+        IdRegistro = r.Texto("IdRegistro"),
+        BobinaId = r.EnteroNulo("BobinaId"),
+        IdBobi = r.EnteroNulo("IdBobi"),
+        ParametroCodigo = r.Texto("ParametroCodigo"),
+        ParametroNombre = r.Texto("ParametroNombre"),
+        Unidad = r.TextoNulo("Unidad"),
+        EsCritico = r.Booleano("EsCritico"),
+        ValorRegistrado = r.DecimalNulo("ValorRegistrado"),
+        LimiteInferior = r.DecimalNulo("LimiteInferior"),
+        LimiteSuperior = r.DecimalNulo("LimiteSuperior"),
+        FechaDeteccion = r.Fecha("FechaDeteccion"),
+        Atendida = r.Booleano("Atendida")
+    };
+
+    public static EstadoNcDisponible EstadoDisponible(DbDataReader r) => new()
+    {
+        EstadoId = r.Entero("EstadoId"),
+        Nombre = r.Texto("Nombre"),
+        Orden = r.Entero("Orden"),
+        EsFinal = r.Booleano("EsFinal")
+    };
+
+    public static NoConformidadCreada NoConformidadCreada(DbDataReader r) => new()
+    {
+        NoConformidadId = r.Entero("NoConformidadId"),
+        Codigo = r.Texto("Codigo")
+    };
+
+    /* ---- Catálogos del formulario de no conformidades ---- */
+
+    public static SeveridadCatalogo Severidad(DbDataReader r) => new()
+    {
+        SeveridadId = r.Entero("SeveridadId"),
+        Nombre = r.Texto("Nombre")
+    };
+
+    public static EstadoNcCatalogo EstadoNc(DbDataReader r) => new()
+    {
+        EstadoId = r.Entero("EstadoId"),
+        Nombre = r.Texto("Nombre"),
+        Orden = r.Entero("Orden"),
+        EsFinal = r.Booleano("EsFinal")
+    };
+
+    public static TipoDefectoCatalogo TipoDefecto(DbDataReader r) => new()
+    {
+        TipoDefectoId = r.Entero("TipoDefectoId"),
+        Nombre = r.Texto("Nombre"),
+        AreaId = r.EnteroNulo("AreaId"),
+        AreaNombre = r.TextoNulo("AreaNombre")
+    };
+
+    public static AreaCatalogo Area(DbDataReader r) => new()
+    {
+        AreaId = r.Entero("AreaId"),
+        Nombre = r.Texto("Nombre")
+    };
+
+    public static ResponsableCatalogo Responsable(DbDataReader r) => new()
+    {
+        UsuarioId = r.Entero("UsuarioId"),
+        Codigo = r.Texto("Codigo"),
+        NombreCompleto = r.Texto("NombreCompleto"),
+        RolNombre = r.Texto("RolNombre"),
+        AreaId = r.EnteroNulo("AreaId")
+    };
 }

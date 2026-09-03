@@ -43,6 +43,7 @@ builder.Services.AddScoped<ICatalogoInspeccionService, CatalogoInspeccionService
 // alertas y del panel también devuelven varios conjuntos de resultados.
 builder.Services.AddScoped<IAlertaService, AlertaService>();
 builder.Services.AddScoped<IPanelCalidadService, PanelCalidadService>();
+builder.Services.AddScoped<INoConformidadService, NoConformidadService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

@@ -1,0 +1,114 @@
+.alta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.alta__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+    border-radius: 3px;
+}
+
+/* Bloque que explica de dónde salió la propuesta cuando la NC nace de una alerta. */
+.alta__origen {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.65rem;
+    background: var(--op-info-bg);
+    border-left: 3px solid var(--op-info-fg);
+    border-radius: 3px;
+}
+
+.alta__origen-titulo {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--op-info-fg);
+}
+
+.alta__origen-detalle {
+    font-size: 0.75rem;
+    color: var(--op-texto);
+}
+
+.alta__fila {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.6rem;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.campo select,
+.campo textarea {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.campo textarea {
+    resize: vertical;
+}
+
+.alta__nota {
+    margin: 0;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.alta__acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
+
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}

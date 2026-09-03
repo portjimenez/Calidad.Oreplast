@@ -64,6 +64,16 @@ public static class LectorExtensiones
         return lector.IsDBNull(i) ? null : lector.GetDateTime(i);
     }
 
+    /// <summary>
+    /// Columna VARBINARY: el contenido de un archivo adjunto. Devuelve null
+    /// cuando la fila guarda una ruta en lugar del binario.
+    /// </summary>
+    public static byte[]? Binario(this DbDataReader lector, string columna)
+    {
+        var i = lector.GetOrdinal(columna);
+        return lector.IsDBNull(i) ? null : (byte[])lector.GetValue(i);
+    }
+
     /// <summary>Columnas DATE de SQL Server: llegan como DateTime y se reducen a DateOnly.</summary>
     public static DateOnly SoloFecha(this DbDataReader lector, string columna) =>
         DateOnly.FromDateTime(lector.GetDateTime(lector.GetOrdinal(columna)));
