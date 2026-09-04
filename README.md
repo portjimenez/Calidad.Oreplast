@@ -1,10 +1,10 @@
 # Sistema de Control de Calidad - Oreplast
 
-Aplicación web para el control de calidad de empaques flexibles en **Oreplast S.A.** (planta Mixco z.2). Proyecto de graduación (UMG).
+Aplicación web para el control de calidad de empaques flexibles en **Oreplast S.A.** (planta Mixco z.2).
 
 Digitaliza la inspección en proceso, detecta variaciones de los parámetros contra la ficha técnica del producto en tiempo real y busca reducir el rechazo de lotes completos.
 
-Este repositorio contiene la **aplicación web** (front-end + lógica). Los procedimientos almacenados se desarrollan e integran a la base de datos por separado.
+Este repositorio contiene la **aplicación web** (front-end + lógica).
 
 ## Stack técnico
 
