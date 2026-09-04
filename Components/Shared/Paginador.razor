@@ -1,0 +1,47 @@
+@typeparam T
+
+@* Controles de paginación del maestro. No se dibuja mientras la lista carga ni
+   cuando no hay filas: un paginador que dice "página 1 de 1" sobre una tabla
+   vacía solo agrega ruido. La lógica vive en Paginacion<T>. *@
+
+@if (!Cargando && Estado.Total > 0)
+{
+    <div class="paginador">
+        <span class="paginador__rango">@Estado.Rango</span>
+        <div class="paginador__controles">
+            <button type="button" class="paginador__boton"
+                    disabled="@(Estado.Pagina <= 1)"
+                    @onclick="() => IrAsync(Estado.Pagina - 1)"
+                    aria-label="Página anterior">‹</button>
+            <span class="paginador__pagina">@Estado.Pagina / @Estado.TotalPaginas</span>
+            <button type="button" class="paginador__boton"
+                    disabled="@(Estado.Pagina >= Estado.TotalPaginas)"
+                    @onclick="() => IrAsync(Estado.Pagina + 1)"
+                    aria-label="Página siguiente">›</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public Paginacion<T> Estado { get; set; } = new();
+
+    /// <summary>Oculta los controles mientras el maestro está cargando.</summary>
+    [Parameter] public bool Cargando { get; set; }
+
+    /// <summary>
+    /// La tabla se dibuja en la pantalla que hospeda este componente, no aquí, así
+    /// que cambiar de página tiene que hacerla redibujarse a ella. Las pantallas
+    /// enganchan su propio StateHasChanged.
+    /// </summary>
+    [Parameter] public EventCallback PaginaCambiada { get; set; }
+
+    private async Task IrAsync(int pagina)
+    {
+        Estado.IrAPagina(pagina);
+
+        if (PaginaCambiada.HasDelegate)
+        {
+            await PaginaCambiada.InvokeAsync();
+        }
+    }
+}

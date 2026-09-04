@@ -44,7 +44,7 @@
                     }
                     else
                     {
-                        @foreach (var certificado in _lista)
+                        @foreach (var certificado in _pag.Elementos)
                         {
                             <tr class="@ClaseFila(certificado)"
                                 @onclick="() => SeleccionarAsync(certificado.CertificadoId)">
@@ -73,6 +73,8 @@
                     }
                 </tbody>
             </table>
+
+            <Paginador Estado="_pag" Cargando="_cargandoLista" PaginaCambiada="StateHasChanged" />
         </PanelCard>
     </Maestro>
     <Detalle>
@@ -342,6 +344,10 @@
 
     private readonly FiltroCertificados _filtro = new();
     private List<CertificadoResumen> _lista = [];
+
+    /// <summary>Paginación del maestro, 10 filas por página (ver Paginacion&lt;T&gt;).</summary>
+    private readonly Paginacion<CertificadoResumen> _pag = new();
+
     private CertificadoDetalle? _detalle;
 
     private bool _cargandoLista = true;
@@ -370,6 +376,9 @@
         try
         {
             _lista = await ServicioCertificados.ListarAsync(_filtro);
+
+            // Reencuadra el maestro: si hay un certificado abierto, deja su fila a la vista.
+            _pag.Actualizar(_lista, c => c.CertificadoId == _detalle?.CertificadoId);
         }
         catch (Exception ex)
         {
@@ -420,21 +429,27 @@
         }
     }
 
+    /* Al cambiar un filtro se vuelve a la primera página: la página 3 del
+       resultado anterior no significa nada en el resultado nuevo. */
+
     private async Task BuscarAsync(ChangeEventArgs e)
     {
         _filtro.Busqueda = e.Value?.ToString();
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarDesdeAsync(ChangeEventArgs e)
     {
         _filtro.FechaDesde = LeerFecha(e);
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarHastaAsync(ChangeEventArgs e)
     {
         _filtro.FechaHasta = LeerFecha(e);
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 

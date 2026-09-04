@@ -58,7 +58,7 @@
                     }
                     else
                     {
-                        @foreach (var alerta in _alertas)
+                        @foreach (var alerta in _pag.Elementos)
                         {
                             <tr class="@ClaseFila(alerta)" @onclick="() => SeleccionarAsync(alerta)">
                                 <td class="tabla-maestro__check" @onclick:stopPropagation="true">
@@ -98,6 +98,8 @@
                     }
                 </tbody>
             </table>
+
+            <Paginador Estado="_pag" Cargando="_cargandoLista" PaginaCambiada="StateHasChanged" />
         </PanelCard>
     </Maestro>
     <Detalle>
@@ -339,6 +341,11 @@
     private readonly FiltroAlertas _filtro = new();
     private List<AlertaResumen> _alertas = [];
 
+    /// <summary>Paginación del maestro, 10 filas por página (ver Paginacion&lt;T&gt;).
+    /// Solo afecta a lo que se dibuja: la selección en bloque sigue trabajando
+    /// sobre la lista filtrada completa, no sobre la página visible.</summary>
+    private readonly Paginacion<AlertaResumen> _pag = new();
+
     /// <summary>
     /// Alertas marcadas para atender en bloque. Se guardan los ids y no las
     /// instancias porque la lista se recarga tras cada operación y las
@@ -381,6 +388,9 @@
 
             // Una alerta que ya no está en la lista tampoco puede seguir marcada.
             _marcadas.IntersectWith(_alertas.Where(a => !a.Atendida).Select(a => a.AlertaId));
+
+            // Reencuadra el maestro: si hay una alerta abierta, deja su fila a la vista.
+            _pag.Actualizar(_alertas, a => a.AlertaId == _detalle?.AlertaId);
         }
         catch (Exception ex)
         {
@@ -467,6 +477,9 @@
         }
     }
 
+    /* Al cambiar un filtro se vuelve a la primera página: la página 3 del
+       resultado anterior no significa nada en el resultado nuevo. */
+
     private async Task CambiarEstadoAsync(ChangeEventArgs e)
     {
         _estadoFiltro = e.Value?.ToString() ?? "pendientes";
@@ -477,24 +490,28 @@
             _ => null
         };
 
+        _pag.Reiniciar(_alertas);
         await CargarListaAsync();
     }
 
     private async Task CambiarSoloCriticosAsync(ChangeEventArgs e)
     {
         _filtro.SoloCriticos = e.Value is true;
+        _pag.Reiniciar(_alertas);
         await CargarListaAsync();
     }
 
     private async Task CambiarDesdeAsync(ChangeEventArgs e)
     {
         _filtro.FechaDesde = LeerFecha(e);
+        _pag.Reiniciar(_alertas);
         await CargarListaAsync();
     }
 
     private async Task CambiarHastaAsync(ChangeEventArgs e)
     {
         _filtro.FechaHasta = LeerFecha(e);
+        _pag.Reiniciar(_alertas);
         await CargarListaAsync();
     }
 

@@ -97,7 +97,7 @@
                     }
                     else
                     {
-                        @foreach (var lote in _lista)
+                        @foreach (var lote in _pag.Elementos)
                         {
                             <tr class="@ClaseFila(lote)" @onclick="() => SeleccionarAsync(lote.LoteId)">
                                 <td>
@@ -131,6 +131,8 @@
                     }
                 </tbody>
             </table>
+
+            <Paginador Estado="_pag" Cargando="_cargandoLista" PaginaCambiada="StateHasChanged" />
         </PanelCard>
     </Maestro>
     <Detalle>
@@ -545,6 +547,10 @@
     ];
 
     private List<LoteResumen> _lista = [];
+
+    /// <summary>Paginación del maestro, 10 filas por página (ver Paginacion&lt;T&gt;).</summary>
+    private readonly Paginacion<LoteResumen> _pag = new();
+
     private LoteDetalle? _detalle;
     private List<BobinaDisponible> _disponibles = [];
     private readonly HashSet<int> _marcadas = [];
@@ -588,6 +594,9 @@
         try
         {
             _lista = await ServicioLotes.ListarAsync(_filtro);
+
+            // Reencuadra el maestro: si hay un lote abierto, deja su fila a la vista.
+            _pag.Actualizar(_lista, l => l.LoteId == _detalle?.LoteId);
         }
         catch (Exception ex)
         {
@@ -774,21 +783,27 @@
         });
     }
 
+    /* Al cambiar un filtro se vuelve a la primera página: la página 3 del
+       resultado anterior no significa nada en el resultado nuevo. */
+
     private async Task BuscarAsync(ChangeEventArgs e)
     {
         _filtro.Busqueda = e.Value?.ToString();
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarEstadoAsync(ChangeEventArgs e)
     {
         _filtro.Estado = Vacio(e.Value?.ToString() ?? string.Empty);
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarSoloSinCertificadoAsync(ChangeEventArgs e)
     {
         _filtro.SoloSinCertificado = e.Value is true;
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 

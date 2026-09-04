@@ -67,7 +67,7 @@
                     }
                     else
                     {
-                        @foreach (var nc in _lista)
+                        @foreach (var nc in _pag.Elementos)
                         {
                             <tr class="@ClaseFila(nc)" @onclick="() => SeleccionarAsync(nc.NoConformidadId)">
                                 <td>
@@ -97,6 +97,8 @@
                     }
                 </tbody>
             </table>
+
+            <Paginador Estado="_pag" Cargando="_cargandoLista" PaginaCambiada="StateHasChanged" />
         </PanelCard>
     </Maestro>
     <Detalle>
@@ -497,6 +499,10 @@
 
     private CatalogosNoConformidad _catalogos = new();
     private List<NoConformidadResumen> _lista = [];
+
+    /// <summary>Paginación del maestro, 10 filas por página (ver Paginacion&lt;T&gt;).</summary>
+    private readonly Paginacion<NoConformidadResumen> _pag = new();
+
     private NoConformidadDetalle? _detalle;
     private EdicionAnalisis _edicion = new();
 
@@ -545,6 +551,9 @@
         try
         {
             _lista = await Servicio.ListarAsync(_filtro);
+
+            // Reencuadra el maestro: si hay una NC abierta, deja su fila a la vista.
+            _pag.Actualizar(_lista, n => n.NoConformidadId == _detalle?.NoConformidadId);
         }
         catch (Exception ex)
         {
@@ -760,27 +769,34 @@
         _aviso = $"Se registró la no conformidad {creada.Codigo}.";
     }
 
+    /* Al cambiar un filtro se vuelve a la primera página: la página 3 del
+       resultado anterior no significa nada en el resultado nuevo. */
+
     private async Task BuscarAsync(ChangeEventArgs e)
     {
         _filtro.Busqueda = e.Value?.ToString();
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarSoloAbiertasAsync(ChangeEventArgs e)
     {
         _filtro.SoloAbiertas = e.Value is true;
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarSeveridadAsync(ChangeEventArgs e)
     {
         _filtro.SeveridadId = LeerEnteroNulo(e);
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
     private async Task CambiarAreaAsync(ChangeEventArgs e)
     {
         _filtro.AreaId = LeerEnteroNulo(e);
+        _pag.Reiniciar(_lista);
         await CargarListaAsync();
     }
 
