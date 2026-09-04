@@ -280,9 +280,6 @@
                         {
                             <PestanaDespeje RegistroId="_detalle.RegistroId"
                                             EsEditable="@(_detalle.EsEditable && _puedeDespejar)"
-                                            DespejeLiberado="_detalle.DespejeLiberado"
-                                            DespejeLiberadoPor="_detalle.DespejeLiberadoPor"
-                                            DespejeFechaLiberacion="_detalle.DespejeFechaLiberacion"
                                             OnCambio="RefrescarContadoresAsync" />
                         }
                     </div>
@@ -388,6 +385,25 @@
         if (RegistroSolicitado is { } registroId)
         {
             var solicitado = _registros.FirstOrDefault(r => r.RegistroId == registroId);
+
+            // El registro puede quedar fuera de la lista por los filtros vigentes:
+            // pasa siempre que se llega desde un lote ya liberado, porque esos
+            // registros están cerrados. Si viene señalado por la URL se busca por
+            // su número de orden, en vez de ignorar la petición.
+            if (solicitado is null)
+            {
+                var detalle = await Registros.ObtenerAsync(registroId);
+
+                if (detalle is not null)
+                {
+                    _filtro.SoloAbiertos = false;
+                    _filtro.Busqueda = detalle.NumeroOP;
+                    await CargarListaAsync();
+
+                    solicitado = _registros.FirstOrDefault(r => r.RegistroId == registroId);
+                }
+            }
+
             if (solicitado is not null)
             {
                 await SeleccionarAsync(solicitado);

@@ -1,0 +1,55 @@
+/* Hoja de estilo de impresión.
+ *
+ * Va aquí y no en el CSS aislado del componente porque los estilos con ámbito
+ * de Blazor solo alcanzan a los elementos de su propio componente, y para
+ * imprimir hay que ocultar el resto de la aplicación: la barra de título, el
+ * menú lateral y el panel maestro. El certificado debe salir en el papel sin
+ * nada de la pantalla alrededor.
+ *
+ * La técnica es la habitual: se oculta todo y se vuelve visible solo la rama
+ * que contiene al documento, que luego se saca del flujo para que ocupe la
+ * hoja completa. */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    #certificado-imprimible,
+    #certificado-imprimible * {
+        visibility: visible;
+    }
+
+    #certificado-imprimible {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        border: none;
+        padding: 0;
+    }
+
+    /* Las tablas de bobinas pueden pasar de una página: que no se corten a la
+       mitad de una fila y que el encabezado se repita arriba. */
+    #certificado-imprimible table {
+        page-break-inside: auto;
+    }
+
+    #certificado-imprimible tr {
+        page-break-inside: avoid;
+    }
+
+    #certificado-imprimible thead {
+        display: table-header-group;
+    }
+
+    /* Los fondos de color no se imprimen por defecto en varios navegadores, y
+       aquí distinguen la fila fuera de tolerancia. */
+    #certificado-imprimible {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    @page {
+        margin: 1.5cm;
+    }
+}

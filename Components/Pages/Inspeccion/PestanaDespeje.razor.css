@@ -91,21 +91,11 @@
     flex-wrap: wrap;
 }
 
-.despeje__vacio,
-.despeje__nota {
+.despeje__vacio {
     font-size: 0.75rem;
     font-style: italic;
     color: var(--op-texto-secundario);
     margin: 0.5rem 0 0;
-}
-
-.despeje__liberado {
-    margin: 0.75rem 0 0;
-    padding: 0.45rem 0.7rem;
-    font-size: 0.75rem;
-    background: var(--op-exito-bg);
-    color: var(--op-exito-fg);
-    border-radius: 3px;
 }
 
 /* ---- Veredicto de la verificación ---- */

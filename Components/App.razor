@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["css/oreplast-theme.css"]" />
     <link rel="stylesheet" href="@Assets["calidad-app.styles.css"]" />
+    @* Va después del CSS aislado: al imprimir tiene que poder ocultar los
+       elementos de todos los componentes, no solo los de uno. *@
+    <link rel="stylesheet" href="@Assets["css/impresion.css"]" />
     <ImportMap />
     <link rel="icon" type="image/x-icon" href="img/Oreplast.ico" />
     <HeadOutlet @rendermode="InteractiveServer" />

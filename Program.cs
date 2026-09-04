@@ -44,6 +44,9 @@ builder.Services.AddScoped<ICatalogoInspeccionService, CatalogoInspeccionService
 builder.Services.AddScoped<IAlertaService, AlertaService>();
 builder.Services.AddScoped<IPanelCalidadService, PanelCalidadService>();
 builder.Services.AddScoped<INoConformidadService, NoConformidadService>();
+builder.Services.AddScoped<ILoteService, LoteService>();
+builder.Services.AddScoped<ILiberacionService, LiberacionService>();
+builder.Services.AddScoped<ICertificadoService, CertificadoService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

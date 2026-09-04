@@ -1,0 +1,459 @@
+@page "/certificados"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@attribute [Authorize(Policy = "CONSULTAR_TRAZABILIDAD")]
+@inject ICertificadoService ServicioCertificados
+@inject IJSRuntime JS
+
+<PageTitle>Certificados de calidad</PageTitle>
+
+<MaestroDetalle>
+    <Maestro>
+        <PanelCard Titulo="Certificados emitidos">
+            <div class="filtros">
+                <input type="search" class="filtros__busqueda"
+                       placeholder="Certificado, lote u orden…"
+                       value="@_filtro.Busqueda"
+                       @onchange="BuscarAsync" />
+                <input type="date" class="filtros__fecha"
+                       value="@_filtro.FechaDesde?.ToString("yyyy-MM-dd")"
+                       @onchange="CambiarDesdeAsync" aria-label="Desde" />
+                <input type="date" class="filtros__fecha"
+                       value="@_filtro.FechaHasta?.ToString("yyyy-MM-dd")"
+                       @onchange="CambiarHastaAsync" aria-label="Hasta" />
+            </div>
+
+            <table class="tabla-maestro">
+                <thead>
+                    <tr>
+                        <th>Certificado</th>
+                        <th>Lote</th>
+                        <th>Cliente</th>
+                        <th class="tabla-maestro__num">Peso</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_cargandoLista)
+                    {
+                        <tr><td colspan="4" class="tabla-maestro__vacio">Cargando certificados…</td></tr>
+                    }
+                    else if (_lista.Count == 0)
+                    {
+                        <tr><td colspan="4" class="tabla-maestro__vacio">Sin certificados que coincidan.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var certificado in _lista)
+                        {
+                            <tr class="@ClaseFila(certificado)"
+                                @onclick="() => SeleccionarAsync(certificado.CertificadoId)">
+                                <td>
+                                    <span class="tabla-maestro__principal">@certificado.CertificadoCodigo</span>
+                                    <span class="tabla-maestro__secundario">
+                                        @certificado.FechaEmision.ToString("dd/MM/yyyy")
+                                    </span>
+                                </td>
+                                <td>
+                                    @certificado.CodigoLote
+                                    <span class="tabla-maestro__secundario">@certificado.NumeroOP</span>
+                                </td>
+                                <td>
+                                    @certificado.ClienteNombre
+                                    <span class="tabla-maestro__secundario">@certificado.ProductoCodigo</span>
+                                </td>
+                                <td class="tabla-maestro__num">
+                                    @Formato(certificado.PesoConforme) kg
+                                    <span class="tabla-maestro__secundario">
+                                        @certificado.TotalBobinas bobinas
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </PanelCard>
+    </Maestro>
+    <Detalle>
+        <PanelCard Titulo="@TituloDetalle">
+            <div class="visor">
+                @if (_error is not null)
+                {
+                    <p class="visor__error" role="alert">@_error</p>
+                }
+
+                @if (_detalle is null)
+                {
+                    <p class="visor__placeholder">
+                        @(_cargandoDetalle
+                            ? "Cargando el certificado…"
+                            : "Seleccione un certificado de la lista para verlo.")
+                    </p>
+                }
+                else
+                {
+                    <div class="visor__acciones">
+                        <button type="button" class="boton boton--primario" @onclick="ImprimirAsync">
+                            Imprimir
+                        </button>
+                    </div>
+
+                    @* ================= Documento imprimible ================= *@
+                    <article class="certificado" id="certificado-imprimible">
+                        <header class="certificado__encabezado">
+                            <div>
+                                <h2 class="certificado__titulo">Certificado de calidad</h2>
+                                <span class="certificado__empresa">
+                                    Oreplast, S.A. · Planta Mixco z.2
+                                </span>
+                            </div>
+                            <div class="certificado__folio">
+                                <strong>@_detalle.CertificadoCodigo</strong>
+                                <span>Emitido el @_detalle.FechaEmision.ToString("dd/MM/yyyy HH:mm")</span>
+                            </div>
+                        </header>
+
+                        <section class="certificado__datos">
+                            <div><span>Lote</span><strong>@_detalle.CodigoLote</strong></div>
+                            <div><span>Orden de producción</span><strong>@_detalle.NumeroOP</strong></div>
+                            <div><span>Cliente</span><strong>@_detalle.ClienteNombre</strong></div>
+                            <div>
+                                <span>Producto</span>
+                                <strong>@_detalle.ProductoCodigo</strong>
+                            </div>
+                            <div class="certificado__datos-ancho">
+                                <span>Descripción</span>
+                                <strong>@_detalle.ProductoNombre</strong>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Estructura))
+                            {
+                                <div><span>Estructura</span><strong>@_detalle.Estructura</strong></div>
+                            }
+                            <div>
+                                <span>Fecha de producción</span>
+                                <strong>@(_detalle.FechaProduccion?.ToString("dd/MM/yyyy") ?? "-")</strong>
+                            </div>
+                            <div>
+                                <span>Ficha técnica aplicada</span>
+                                <strong>
+                                    @(_detalle.FichaVersion is null
+                                        ? "Sin ficha vigente"
+                                        : $"Versión {_detalle.FichaVersion}")
+                                </strong>
+                            </div>
+                            <div>
+                                <span>Bobinas entregadas</span>
+                                <strong>@_detalle.BobinasConformes de @_detalle.TotalBobinas</strong>
+                            </div>
+                            <div>
+                                <span>Peso conforme</span>
+                                <strong>@Formato(_detalle.PesoConforme) kg</strong>
+                            </div>
+                        </section>
+
+                        @* El documento no afirma "cumple": muestra contra qué se comparó. *@
+                        <section class="certificado__seccion">
+                            <h3>Resultados contra la ficha técnica</h3>
+                            @if (_detalle.Resultados.Count == 0)
+                            {
+                                <p class="certificado__vacio">
+                                    El producto no tiene ficha técnica vigente, así que las mediciones
+                                    no pudieron compararse contra tolerancias.
+                                </p>
+                            }
+                            else
+                            {
+                                <table class="certificado__tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Parámetro</th>
+                                            <th>Unidad</th>
+                                            <th class="num">Objetivo</th>
+                                            <th class="num">Tolerancia</th>
+                                            <th class="num">Mediciones</th>
+                                            <th class="num">Mín.</th>
+                                            <th class="num">Máx.</th>
+                                            <th class="num">Prom.</th>
+                                            <th>Resultado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var r in _detalle.Resultados)
+                                        {
+                                            <tr class="@(r.Cumple == false ? "fila--fuera" : null)">
+                                                <td>
+                                                    @r.ParametroNombre
+                                                    @if (r.EsCritico)
+                                                    {
+                                                        <span class="critico">crítico</span>
+                                                    }
+                                                </td>
+                                                <td>@r.Unidad</td>
+                                                <td class="num">@Formato(r.ValorObjetivo)</td>
+                                                <td class="num">@r.RangoTexto</td>
+                                                <td class="num">@r.Mediciones</td>
+                                                <td class="num">@Formato(r.ValorMinimo)</td>
+                                                <td class="num">@Formato(r.ValorMaximo)</td>
+                                                <td class="num">@Formato(r.ValorPromedio)</td>
+                                                <td>@r.ResultadoTexto</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+
+                                <p class="certificado__conclusion">
+                                    @if (_detalle.CumpleTodo)
+                                    {
+                                        <text>
+                                            Las @_detalle.ParametrosEvaluados variables evaluadas se
+                                            mantuvieron dentro de la tolerancia de la ficha técnica.
+                                        </text>
+                                    }
+                                    else
+                                    {
+                                        <text>
+                                            @_detalle.ParametrosFueraDeTolerancia de
+                                            @_detalle.ParametrosEvaluados variables evaluadas presentaron
+                                            mediciones fuera de tolerancia; el producto no conforme
+                                            fue segregado y se detalla más abajo.
+                                        </text>
+                                    }
+                                </p>
+                            }
+                        </section>
+
+                        <section class="certificado__seccion">
+                            <h3>Bobinas entregadas (@_detalle.BobinasEntregadas.Count)</h3>
+                            <table class="certificado__tabla">
+                                <thead>
+                                    <tr>
+                                        <th>Registro</th>
+                                        <th class="num">Bobina</th>
+                                        <th class="num">Peso (kg)</th>
+                                        <th class="num">Metros</th>
+                                        <th class="num">Ancho</th>
+                                        <th class="num">Calibre</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in _detalle.BobinasEntregadas)
+                                    {
+                                        <tr>
+                                            <td>@b.IdRegistro</td>
+                                            <td class="num">@b.IdBobi</td>
+                                            <td class="num">@Formato(b.Peso)</td>
+                                            <td class="num">@Formato(b.Metros)</td>
+                                            <td class="num">@Formato(b.Ancho)</td>
+                                            <td class="num">@Formato(b.Calibre)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </section>
+
+                        @* Va en el documento a propósito: un certificado que omite lo que
+                           se separó no es trazable. *@
+                        @if (_detalle.BobinasSegregadasDetalle.Count > 0)
+                        {
+                            <section class="certificado__seccion">
+                                <h3>Producto segregado (@_detalle.BobinasSegregadasDetalle.Count)</h3>
+                                <table class="certificado__tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Registro</th>
+                                            <th class="num">Bobina</th>
+                                            <th class="num">Peso (kg)</th>
+                                            <th>No conformidad</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var b in _detalle.BobinasSegregadasDetalle)
+                                        {
+                                            <tr>
+                                                <td>@b.IdRegistro</td>
+                                                <td class="num">@b.IdBobi</td>
+                                                <td class="num">@Formato(b.Peso)</td>
+                                                <td>
+                                                    @b.NoConformidadCodigo
+                                                    <span class="secundario">@b.NoConformidadEstado</span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </section>
+                        }
+
+                        @if (_detalle.NoConformidades.Count > 0)
+                        {
+                            <section class="certificado__seccion">
+                                <h3>No conformidades resueltas (@_detalle.NoConformidades.Count)</h3>
+                                @foreach (var nc in _detalle.NoConformidades)
+                                {
+                                    <div class="nc">
+                                        <strong>@nc.Codigo · @nc.EstadoNombre</strong>
+                                        <p>@nc.Descripcion</p>
+                                        @if (!string.IsNullOrWhiteSpace(nc.CausaRaiz))
+                                        {
+                                            <p><span>Causa raíz:</span> @nc.CausaRaiz</p>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(nc.AccionCorrectiva))
+                                        {
+                                            <p><span>Acción correctiva:</span> @nc.AccionCorrectiva</p>
+                                        }
+                                    </div>
+                                }
+                            </section>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(_detalle.Observaciones))
+                        {
+                            <section class="certificado__seccion">
+                                <h3>Observaciones</h3>
+                                <p>@_detalle.Observaciones</p>
+                            </section>
+                        }
+
+                        <footer class="certificado__firma">
+                            <div class="certificado__firma-linea"></div>
+                            <strong>@_detalle.EmitidoPorNombre</strong>
+                            <span>
+                                Ingeniería de Calidad
+                                @if (!string.IsNullOrEmpty(_detalle.EmitidoPorCodigo))
+                                {
+                                    <text> · código @_detalle.EmitidoPorCodigo</text>
+                                }
+                            </span>
+                        </footer>
+                    </article>
+                }
+            </div>
+        </PanelCard>
+    </Detalle>
+</MaestroDetalle>
+
+@code {
+    [SupplyParameterFromQuery(Name = "certificado")]
+    private int? CertificadoInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "lote")]
+    private int? LoteInicial { get; set; }
+
+    private readonly FiltroCertificados _filtro = new();
+    private List<CertificadoResumen> _lista = [];
+    private CertificadoDetalle? _detalle;
+
+    private bool _cargandoLista = true;
+    private bool _cargandoDetalle;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarListaAsync();
+
+        if (CertificadoInicial is { } certificadoId)
+        {
+            await SeleccionarAsync(certificadoId);
+        }
+        else if (LoteInicial is { } loteId)
+        {
+            await CargarDetalleAsync(loteId: loteId);
+        }
+    }
+
+    private async Task CargarListaAsync()
+    {
+        _cargandoLista = true;
+        _error = null;
+
+        try
+        {
+            _lista = await ServicioCertificados.ListarAsync(_filtro);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoLista = false;
+        }
+    }
+
+    private Task SeleccionarAsync(int certificadoId) =>
+        CargarDetalleAsync(certificadoId: certificadoId);
+
+    private async Task CargarDetalleAsync(int? certificadoId = null, int? loteId = null)
+    {
+        _cargandoDetalle = true;
+        _error = null;
+
+        try
+        {
+            _detalle = await ServicioCertificados.ObtenerAsync(certificadoId, loteId);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    /// <summary>
+    /// Imprime con el diálogo del navegador. La hoja de estilo de impresión
+    /// oculta todo salvo el documento, así que el papel sale con el
+    /// certificado y nada de la aplicación alrededor.
+    /// </summary>
+    private async Task ImprimirAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("window.print");
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito se cerró mientras se imprimía: no hay nada que hacer.
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _filtro.Busqueda = e.Value?.ToString();
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarDesdeAsync(ChangeEventArgs e)
+    {
+        _filtro.FechaDesde = LeerFecha(e);
+        await CargarListaAsync();
+    }
+
+    private async Task CambiarHastaAsync(ChangeEventArgs e)
+    {
+        _filtro.FechaHasta = LeerFecha(e);
+        await CargarListaAsync();
+    }
+
+    private string TituloDetalle =>
+        _detalle is null ? "Certificado" : $"Certificado {_detalle.CertificadoCodigo}";
+
+    private string ClaseFila(CertificadoResumen certificado) =>
+        certificado.CertificadoId == _detalle?.CertificadoId
+            ? "tabla-maestro__fila--seleccionada"
+            : string.Empty;
+
+    private static DateOnly? LeerFecha(ChangeEventArgs e) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : null;
+
+    private static string Formato(decimal? valor) => valor?.ToString("0.###") ?? "-";
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

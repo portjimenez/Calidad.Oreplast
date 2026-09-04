@@ -1,6 +1,7 @@
 @using calidad_app.Data.Sp
 @using calidad_app.Models.Inspeccion
 @using calidad_app.Services.Inspeccion
+@using calidad_app.Components.Pages.Calidad
 @inject IRegistroInspeccionService Registros
 
 <div class="despeje">
@@ -128,22 +129,19 @@
             }
         }
 
-        @if (DespejeLiberado)
-        {
-            <p class="despeje__liberado">
-                Despeje liberado por @DespejeLiberadoPor
-                @if (DespejeFechaLiberacion is { } fecha)
-                {
-                    <text> el @fecha.ToString("dd/MM/yyyy HH:mm")</text>
-                }.
-            </p>
-        }
-        else
-        {
-            <p class="despeje__nota">
-                La firma de liberación y el certificado por lote corresponden al módulo de Calidad.
-            </p>
-        }
+    </section>
+
+    @* ================= Firma de liberación (módulo 3) =================
+       Va aquí y no en otra pantalla porque es donde el ingeniero acaba de ver
+       qué falta: comprobar en un sitio y firmar en otro invita a firmar sin
+       haber comprobado. El componente decide por sí solo qué mostrar según el
+       permiso del usuario. *@
+    <section class="bloque">
+        <div class="bloque__encabezado">
+            <h4 class="bloque__titulo">Liberación del producto</h4>
+        </div>
+
+        <PanelLiberacion RegistroId="RegistroId" OnLiberado="OnCambio" />
     </section>
 </div>
 
@@ -151,9 +149,6 @@
     [Parameter, EditorRequired] public int RegistroId { get; set; }
     [Parameter] public bool EsEditable { get; set; }
     [Parameter] public EventCallback OnCambio { get; set; }
-    [Parameter] public bool DespejeLiberado { get; set; }
-    [Parameter] public string? DespejeLiberadoPor { get; set; }
-    [Parameter] public DateTime? DespejeFechaLiberacion { get; set; }
 
     private Checklist _checklist = new();
     private readonly Dictionary<int, bool> _respuestas = [];

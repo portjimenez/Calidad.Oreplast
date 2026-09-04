@@ -1,0 +1,315 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@inject ILiberacionService Liberaciones
+
+@*
+    Las dos firmas de liberación de un registro.
+
+    Va dentro de la pestaña "Despeje / Liberación" del módulo 2, justo debajo
+    de la verificación previa, porque es donde el ingeniero ya está mirando qué
+    falta. Separarlo en otra pantalla obligaría a comprobar en un sitio y firmar
+    en otro.
+
+    Ninguna regla se decide aquí: la base comprueba el permiso, vuelve a correr
+    la validación de completitud y rechaza la firma si hay bloqueantes. Este
+    componente solo muestra el estado y traduce el error.
+*@
+
+<div class="liberacion">
+    @if (_error is not null)
+    {
+        <p class="liberacion__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="liberacion__aviso" role="status">@_aviso</p>
+    }
+
+    @if (_estado is null)
+    {
+        <p class="liberacion__vacio">
+            @(_cargando ? "Cargando el estado de liberación…" : "Sin datos de liberación.")
+        </p>
+    }
+    else
+    {
+        <div class="firmas">
+            @foreach (var firma in _estado.Firmas)
+            {
+                <div class="firma @(firma.Firmada ? "firma--hecha" : "firma--pendiente")">
+                    <div class="firma__encabezado">
+                        <strong>@firma.TipoTexto</strong>
+                        <EstadoChip Texto="@(firma.Firmada ? "Firmada" : "Pendiente")"
+                                    Tono="@(firma.Firmada ? TonoChip.Exito : TonoChip.Neutro)" />
+                    </div>
+                    <span class="firma__descripcion">@firma.DescripcionTexto</span>
+
+                    @if (firma.Firmada)
+                    {
+                        <span class="firma__autor">
+                            @firma.LiberadoPorNombre
+                            @if (!string.IsNullOrEmpty(firma.CodigoQuienLibera))
+                            {
+                                <text> (código @firma.CodigoQuienLibera)</text>
+                            }
+                        </span>
+                        <span class="firma__fecha">
+                            @firma.FechaLiberacion?.ToString("dd/MM/yyyy HH:mm")
+                            @if (firma.CodigoLote is not null)
+                            {
+                                <text> · lote @firma.CodigoLote</text>
+                            }
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+
+        <AuthorizeView Policy="LIBERAR_PRODUCTO" Context="calidad">
+            <Authorized>
+                @if (_estado.Bloqueado && _estado.CierreFirma?.Firmada == true)
+                {
+                    <p class="liberacion__cerrado">
+                        El registro está @_estado.Estado.ToLowerInvariant() y ya no admite cambios.
+                        Una liberación no se revierte: si algo se firmó por error, el camino es
+                        levantar una no conformidad.
+                    </p>
+                }
+                else
+                {
+                    @* --- Sección Cierre de orden --- *@
+                    @if (_estado.PuedeFirmarCierre || _estado.CierreFirma?.Firmada != true)
+                    {
+                        <section class="bloque">
+                            <h4 class="bloque__titulo">Cierre de orden</h4>
+                            <p class="bloque__pista">
+                                Los kilos no conformes incluyen el desperdicio que nunca llegó a ser
+                                bobina (arranque, empalmes, orillas), por eso se capturan aparte de
+                                las bobinas segregadas.
+                            </p>
+                            <div class="cierre">
+                                <label class="campo campo--ancho">
+                                    <span>Comentarios</span>
+                                    <textarea rows="2" maxlength="1000"
+                                              value="@_cierre.Comentarios"
+                                              @onchange="e => _cierre.Comentarios = e.Value?.ToString()"></textarea>
+                                </label>
+                                <label class="campo">
+                                    <span>Kg no conformes</span>
+                                    <input type="number" step="0.001" min="0"
+                                           value="@_cierre.Kg"
+                                           @onchange="e => _cierre.Kg = LeerDecimal(e)" />
+                                </label>
+                                <label class="campo campo--ancho">
+                                    <span>Razón del producto no conforme</span>
+                                    <input type="text" maxlength="500"
+                                           value="@_cierre.Razon"
+                                           @onchange="e => _cierre.Razon = e.Value?.ToString()" />
+                                </label>
+                            </div>
+                            <div class="bloque__acciones">
+                                <button type="button" class="boton boton--fantasma"
+                                        disabled="@_guardando" @onclick="GuardarCierreAsync">
+                                    @(_guardando ? "Guardando…" : "Guardar cierre de orden")
+                                </button>
+                            </div>
+                        </section>
+                    }
+
+                    @* --- Firmas --- *@
+                    <section class="bloque">
+                        <h4 class="bloque__titulo">Firmar liberación</h4>
+
+                        <label class="verificacion">
+                            <input type="checkbox" checked="@_calidadVerificada"
+                                   @onchange="e => _calidadVerificada = e.Value is true" />
+                            Verifiqué la calidad del producto
+                        </label>
+                        <label class="verificacion">
+                            <input type="checkbox" checked="@_inocuidadVerificada"
+                                   @onchange="e => _inocuidadVerificada = e.Value is true" />
+                            Verifiqué la inocuidad del producto
+                        </label>
+
+                        @if (_estado.LoteId is null && _estado.PuedeFirmarCierre)
+                        {
+                            <p class="bloque__pista">
+                                Las bobinas de este registro todavía no están agrupadas en un lote.
+                                Se puede firmar igual, pero el certificado se emite sobre el lote:
+                                agrúpelas antes en
+                                <a href="/trazabilidad-lote">Trazabilidad por lote</a>.
+                            </p>
+                        }
+
+                        <div class="bloque__acciones">
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@(_guardando || !_estado.PuedeFirmarDespeje || !VerificacionesMarcadas)"
+                                    @onclick="() => FirmarAsync(TipoLiberacion.DespejeLinea)">
+                                Firmar despeje de línea
+                            </button>
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@(_guardando || !_estado.PuedeFirmarCierre || !VerificacionesMarcadas)"
+                                    @onclick="() => FirmarAsync(TipoLiberacion.CierreOrden)">
+                                Liberar producto (cierre de orden)
+                            </button>
+                        </div>
+
+                        @if (!_estado.PuedeFirmarCierre && _estado.CierreFirma?.Firmada != true)
+                        {
+                            <p class="bloque__pista">
+                                El cierre no se puede firmar sin el despeje de línea: en el proceso
+                                real el despeje autoriza a arrancar y el cierre libera lo producido.
+                            </p>
+                        }
+                    </section>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <p class="liberacion__nota">
+                    La firma de liberación corresponde a Ingeniería de Calidad.
+                </p>
+            </NotAuthorized>
+        </AuthorizeView>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public int RegistroId { get; set; }
+
+    /// <summary>Avisa a la pantalla contenedora para que refresque el registro.</summary>
+    [Parameter] public EventCallback OnLiberado { get; set; }
+
+    private EstadoLiberacion? _estado;
+    private EdicionCierre _cierre = new();
+    private bool _calidadVerificada = true;
+    private bool _inocuidadVerificada = true;
+
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+    private int _registroCargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_registroCargado == RegistroId)
+        {
+            return;
+        }
+
+        _registroCargado = RegistroId;
+        _error = null;
+        _aviso = null;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+
+        try
+        {
+            AplicarEstado(await Liberaciones.ObtenerAsync(RegistroId));
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void AplicarEstado(EstadoLiberacion? estado)
+    {
+        _estado = estado;
+        _cierre = EdicionCierre.Desde(estado?.Cierre);
+    }
+
+    private async Task GuardarCierreAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            AplicarEstado(await Liberaciones.GuardarCierreAsync(
+                RegistroId, _cierre.Comentarios, _cierre.Kg, _cierre.Razon));
+
+            _aviso = "Cierre de orden guardado.";
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task FirmarAsync(string tipo)
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var resultado = await Liberaciones.RegistrarAsync(
+                RegistroId, tipo, _estado?.LoteId, _calidadVerificada, _inocuidadVerificada);
+
+            _aviso = tipo == TipoLiberacion.DespejeLinea
+                ? "Despeje de línea firmado."
+                : "Producto liberado." +
+                  (resultado.OrdenCerrada ? " La orden quedó cerrada: no le quedaban registros abiertos." : "") +
+                  (resultado.AdvertenciasAlLiberar > 0
+                      ? $" Se liberó con {resultado.AdvertenciasAlLiberar} advertencia(s)."
+                      : "");
+
+            await CargarAsync();
+            await OnLiberado.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>
+    /// Las dos casillas del formato son requisito de la base, no decoración:
+    /// el procedimiento rechaza la firma si alguna viene en false.
+    /// </summary>
+    private bool VerificacionesMarcadas => _calidadVerificada && _inocuidadVerificada;
+
+    private static decimal? LeerDecimal(ChangeEventArgs e) =>
+        decimal.TryParse(e.Value?.ToString(), out var valor) ? valor : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+
+    /// <summary>Sección de cierre mientras se edita, sobre una copia.</summary>
+    private sealed class EdicionCierre
+    {
+        public string? Comentarios { get; set; }
+        public decimal? Kg { get; set; }
+        public string? Razon { get; set; }
+
+        public static EdicionCierre Desde(CierreOrden? cierre) => new()
+        {
+            Comentarios = cierre?.Comentarios,
+            Kg = cierre?.KgProductoNoConforme,
+            Razon = cierre?.RazonNoConforme
+        };
+    }
+}

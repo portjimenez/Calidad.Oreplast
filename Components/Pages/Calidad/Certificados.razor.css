@@ -1,0 +1,326 @@
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__busqueda {
+    flex: 1 1 8rem;
+    min-width: 7rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.filtros__fecha {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+/* ---- Tabla maestra ---- */
+.tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.tabla-maestro__fila--seleccionada,
+.tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Visor ---- */
+.visor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.65rem;
+}
+
+.visor__placeholder {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.visor__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+    border-radius: 3px;
+}
+
+.visor__acciones {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* ---- El documento ----
+   Se maqueta como una hoja: fondo blanco, márgenes generosos y tipografía algo
+   mayor que la de la aplicación, porque este bloque se imprime tal cual. */
+.certificado {
+    background: #fff;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 1.2rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    color: var(--op-texto);
+    font-size: 0.78rem;
+}
+
+.certificado__encabezado {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--op-azul);
+}
+
+.certificado__titulo {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--op-azul);
+}
+
+.certificado__empresa {
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__folio {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+}
+
+.certificado__folio strong {
+    font-size: 0.95rem;
+}
+
+.certificado__folio span {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__datos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.5rem 1rem;
+}
+
+.certificado__datos > div {
+    display: flex;
+    flex-direction: column;
+}
+
+.certificado__datos-ancho {
+    grid-column: 1 / -1;
+}
+
+.certificado__datos span {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__datos strong {
+    font-weight: 600;
+}
+
+.certificado__seccion h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--op-azul);
+    border-bottom: 1px solid var(--op-borde);
+    padding-bottom: 0.2rem;
+}
+
+.certificado__seccion p {
+    margin: 0 0 0.3rem;
+}
+
+.certificado__vacio {
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}
+
+.certificado__tabla th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--op-texto-secundario);
+    padding: 0.25rem 0.4rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.certificado__tabla td {
+    padding: 0.25rem 0.4rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.certificado__tabla .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.certificado__tabla .fila--fuera {
+    background: var(--op-peligro-bg);
+}
+
+.critico {
+    margin-left: 0.3rem;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--op-peligro-fg);
+}
+
+.secundario {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__conclusion {
+    margin-top: 0.5rem !important;
+    padding: 0.45rem 0.6rem;
+    background: var(--op-fondo);
+    border-left: 3px solid var(--op-azul);
+    font-size: 0.75rem;
+}
+
+.nc {
+    padding: 0.45rem 0.6rem;
+    margin-bottom: 0.4rem;
+    background: var(--op-fondo);
+    border-radius: 3px;
+    font-size: 0.74rem;
+}
+
+.nc p span {
+    font-weight: 600;
+    color: var(--op-texto-secundario);
+}
+
+.certificado__firma {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    margin-top: 1.5rem;
+    padding-top: 0.4rem;
+}
+
+.certificado__firma-linea {
+    width: 14rem;
+    border-top: 1px solid var(--op-texto);
+    margin-bottom: 0.3rem;
+}
+
+.certificado__firma span {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Botones ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover {
+    background: #1a5f99;
+}

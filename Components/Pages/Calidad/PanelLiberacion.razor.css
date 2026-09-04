@@ -1,0 +1,200 @@
+.liberacion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.liberacion__error,
+.liberacion__aviso {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.liberacion__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.liberacion__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.liberacion__vacio,
+.liberacion__nota {
+    margin: 0;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.liberacion__cerrado {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.73rem;
+    background: var(--op-info-bg);
+    color: var(--op-info-fg);
+    border-left: 3px solid var(--op-info-fg);
+    border-radius: 3px;
+}
+
+/* ---- Las dos firmas, lado a lado ---- */
+.firmas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem;
+}
+
+.firma {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--op-borde);
+    border-left: 3px solid var(--op-neutro-fg);
+    border-radius: 3px;
+    background: #fff;
+}
+
+.firma--hecha {
+    border-left-color: var(--op-exito-fg);
+    background: var(--op-exito-bg);
+}
+
+.firma--pendiente {
+    background: var(--op-fondo);
+}
+
+.firma__encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+}
+
+.firma__descripcion {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.firma__autor {
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.firma__fecha {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Bloques ---- */
+.bloque {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--op-borde-suave);
+}
+
+.bloque__titulo {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.bloque__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.bloque__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+/* ---- Cierre de orden ---- */
+.cierre {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.5rem;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.campo--ancho {
+    grid-column: 1 / -1;
+}
+
+.campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.campo input,
+.campo textarea {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.3rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.campo textarea {
+    resize: vertical;
+}
+
+.verificacion {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+}
+
+/* ---- Botones ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
