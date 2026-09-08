@@ -8,7 +8,7 @@
 @inject ICatalogoProcesoService Proceso
 @inject NavigationManager Navegacion
 
-<PageTitle>Catálogos</PageTitle>
+<PageTitle>Catálogos · @NombreActual</PageTitle>
 
 @* Mantenimiento de los diez catálogos maestros. Cada pestaña es un componente
    aparte porque cada catálogo tiene sus propias reglas; los cinco que solo
@@ -17,13 +17,19 @@
    las listas que alimentan los combos. *@
 
 <div class="catalogos">
-    <PanelCard Titulo="Catálogos">
+    @* El catálogo abierto se nombra también en el encabezado del panel y en el
+       título de la ventana: la barra de pestañas sola obliga a buscar cuál está
+       resaltada, y quien administra entra y sale de esta pantalla todo el día. *@
+    <PanelCard Titulo="@($"Catálogos · {NombreActual}")">
         @if (_error is not null)
         {
             <p class="catalogos__error" role="alert">@_error</p>
         }
 
-        <TabStrip Pestanas="_pestanas" PestanaActiva="_activa"
+        @* El @ delante de _activa importa: PestanaActiva es string, y sin él Razor
+           pasaría el texto literal "_activa" en lugar del valor del campo, con lo
+           que ninguna pestaña se marcaría como la abierta. *@
+        <TabStrip Pestanas="_pestanas" PestanaActiva="@_activa"
                   PestanaActivaChanged="CambiarPestana" />
 
         @if (_cargando)
@@ -135,6 +141,12 @@
         _activa = clave;
         Navegacion.NavigateTo($"/catalogos?pestana={clave}", replace: true);
     }
+
+    /// <summary>Nombre del catálogo abierto, para el encabezado y el título de la ventana.</summary>
+    private string NombreActual =>
+        _resumen.FirstOrDefault(r => r.Clave == _activa) is { } abierto
+            ? NombreVisible(abierto)
+            : "cargando…";
 
     /// <summary>
     /// Nombre de la pestaña en español correcto. Los literales de los
