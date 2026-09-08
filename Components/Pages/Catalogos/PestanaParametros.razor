@@ -1,0 +1,400 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Services.Catalogos
+@using calidad_app.Components.Shared
+@inject ICatalogoProcesoService Catalogos
+
+@* Parámetros medibles del proceso. Es el catálogo del que dependen las fichas
+   técnicas: cada tolerancia apunta a un parámetro de aquí, y cada alerta nace
+   de comparar una medición contra esa tolerancia. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <input type="search" class="filtros__busqueda"
+                   placeholder="Código o nombre…"
+                   value="@_busqueda" @onchange="BuscarAsync" />
+            <select class="filtros__select" value="@_areaFiltro" @onchange="CambiarAreaFiltroAsync">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas)
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloCriticos" @onchange="CambiarSoloCriticosAsync" />
+                Solo críticos
+            </label>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloActivos" @onchange="CambiarSoloActivosAsync" />
+                Solo activos
+            </label>
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nuevo parámetro
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Área</th>
+                    <th class="tabla-maestro__num">Fichas</th>
+                    <th class="tabla-maestro__num">Mediciones</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Cargando parámetros…</td></tr>
+                }
+                else if (_parametros.Count == 0)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Sin parámetros que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var parametro in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(parametro)" @onclick="() => Seleccionar(parametro)">
+                            <td>
+                                <span class="tabla-maestro__principal">@parametro.Codigo</span>
+                                @if (parametro.EsCritico)
+                                {
+                                    <span class="tabla-maestro__secundario">Crítico</span>
+                                }
+                            </td>
+                            <td>
+                                @parametro.Nombre
+                                @if (parametro.Unidad is not null)
+                                {
+                                    <span class="tabla-maestro__secundario">@parametro.Unidad</span>
+                                }
+                            </td>
+                            <td>@(parametro.AreaNombre ?? "Todas")</td>
+                            <td class="tabla-maestro__num">@parametro.FichasActivas</td>
+                            <td class="tabla-maestro__num">@parametro.Mediciones</td>
+                            <td>
+                                <EstadoChip Texto="@(parametro.Activo ? "Activo" : "Retirado")"
+                                            Tono="@(parametro.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(_edicion.ParametroId == 0 ? "Nuevo parámetro" : _edicion.Nombre)
+        </h3>
+
+        <label class="campo">
+            <span>Código</span>
+            <input type="text" maxlength="40" disabled="@(!PuedeCambiarCodigo)"
+                   value="@_edicion.Codigo"
+                   @onchange="e => _edicion.Codigo = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        @if (!PuedeCambiarCodigo)
+        {
+            <p class="ficha__pista">
+                El código queda fijo: el parámetro tiene @_edicion.Mediciones mediciones
+                registradas y es así como lo nombra el formato ya firmado.
+            </p>
+        }
+
+        <label class="campo">
+            <span>Nombre</span>
+            <input type="text" maxlength="120"
+                   value="@_edicion.Nombre"
+                   @onchange="e => _edicion.Nombre = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Unidad</span>
+            <input type="text" maxlength="20" placeholder="mic, mm, m/min…"
+                   value="@_edicion.Unidad"
+                   @onchange="e => _edicion.Unidad = e.Value?.ToString()" />
+        </label>
+
+        <label class="campo">
+            <span>Área</span>
+            <select value="@(_edicion.AreaId ?? 0)"
+                    @onchange="e => _edicion.AreaId = LeerIdNulo(e)">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas.Where(a => a.Activo || a.AreaId == _edicion.AreaId))
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+        </label>
+
+        <label class="campo">
+            <span>Orden en el formulario</span>
+            <input type="number" step="10" min="0"
+                   value="@_edicion.Orden"
+                   @onchange="e => _edicion.Orden = LeerEntero(e)" />
+        </label>
+
+        <label class="filtros__check ficha__check">
+            <input type="checkbox" checked="@_edicion.EsCritico"
+                   @onchange="e => _edicion.EsCritico = e.Value is bool v && v" />
+            Parámetro crítico
+        </label>
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar")
+            </button>
+
+            @if (_edicion.ParametroId != 0)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="boton @(_edicion.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@(_guardando || (_edicion.Activo && !_edicion.SePuedeDesactivar))"
+                        @onclick="CambiarEstadoAsync">
+                    @(_edicion.Activo ? "Retirar del catálogo" : "Reincorporar")
+                </button>
+            }
+        </div>
+
+        @if (_edicion.ParametroId != 0 && _edicion.Activo && !_edicion.SePuedeDesactivar)
+        {
+            <p class="ficha__pista">
+                No se puede retirar: @_edicion.FichasActivas fichas técnicas activas lo usan
+                como tolerancia. Se seguiría aplicando sin poder verse ni mantenerse desde el
+                catálogo, así que primero se corrige la ficha.
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SelectoresCatalogo Selectores { get; set; } = new();
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private List<ParametroCatalogo> _parametros = [];
+    private readonly Paginacion<ParametroCatalogo> _pag = new();
+    private ParametroCatalogo _edicion = new();
+
+    private string _busqueda = string.Empty;
+    private int _areaFiltro;
+    private bool _soloActivos;
+    private bool _soloCriticos;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private bool PuedeCambiarCodigo => _edicion.ParametroId == 0 || _edicion.PuedeCambiarCodigo;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página: la
+    /// página 3 del resultado anterior no significa nada en el resultado nuevo.
+    /// Al recargar tras guardar, en cambio, se conserva la posición.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _parametros = await Catalogos.ListarParametrosAsync(
+                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim(),
+                _areaFiltro == 0 ? null : _areaFiltro,
+                _soloActivos,
+                _soloCriticos);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_parametros);
+            }
+            else
+            {
+                _pag.Actualizar(_parametros, p => p.ParametroId == _edicion.ParametroId && _edicion.ParametroId != 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _busqueda = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarAreaFiltroAsync(ChangeEventArgs e)
+    {
+        _areaFiltro = LeerEntero(e);
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloActivosAsync(ChangeEventArgs e)
+    {
+        _soloActivos = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloCriticosAsync(ChangeEventArgs e)
+    {
+        _soloCriticos = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private void Seleccionar(ParametroCatalogo parametro)
+    {
+        _edicion = Copiar(parametro);
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new ParametroCatalogo
+        {
+            AreaId = _areaFiltro == 0 ? null : _areaFiltro,
+            Orden = SiguienteOrden()
+        };
+
+        _error = null;
+        _aviso = null;
+    }
+
+    /// <summary>
+    /// Propone el siguiente hueco de diez en diez. El orden es el del formato en
+    /// papel, y dejar espacio entre parámetros permite intercalar uno nuevo sin
+    /// renumerar los demás.
+    /// </summary>
+    private int SiguienteOrden() =>
+        _parametros.Count == 0 ? 10 : _parametros.Max(p => p.Orden) + 10;
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.ParametroId == 0;
+            _edicion.ParametroId = await Catalogos.GuardarParametroAsync(_edicion);
+            _aviso = esAlta ? "Parámetro creado." : "Cambios guardados.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_edicion.Activo;
+            await Catalogos.CambiarEstadoParametroAsync(_edicion.ParametroId, activar);
+            _aviso = activar ? "Parámetro reincorporado." : "Parámetro retirado del catálogo.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task RecargarAsync()
+    {
+        await CargarAsync();
+
+        var actual = _parametros.FirstOrDefault(p => p.ParametroId == _edicion.ParametroId);
+        if (actual is not null)
+        {
+            _edicion = Copiar(actual);
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private static ParametroCatalogo Copiar(ParametroCatalogo p) => new()
+    {
+        ParametroId = p.ParametroId,
+        Codigo = p.Codigo,
+        Nombre = p.Nombre,
+        Unidad = p.Unidad,
+        AreaId = p.AreaId,
+        AreaNombre = p.AreaNombre,
+        EsCritico = p.EsCritico,
+        Orden = p.Orden,
+        Activo = p.Activo,
+        Tolerancias = p.Tolerancias,
+        FichasActivas = p.FichasActivas,
+        Mediciones = p.Mediciones,
+        Alertas = p.Alertas,
+        EnUso = p.EnUso
+    };
+
+    private string? ClaseFila(ParametroCatalogo p) =>
+        p.ParametroId == _edicion.ParametroId && _edicion.ParametroId != 0
+            ? "tabla-maestro__fila--seleccionada"
+            : null;
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

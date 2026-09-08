@@ -1,0 +1,326 @@
+@page "/catalogos"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Services.Catalogos
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "GESTIONAR_CATALOGOS")]
+@inject ICatalogoService Servicio
+@inject ICatalogoProcesoService Proceso
+@inject NavigationManager Navegacion
+
+<PageTitle>Catálogos</PageTitle>
+
+@* Mantenimiento de los diez catálogos maestros. Cada pestaña es un componente
+   aparte porque cada catálogo tiene sus propias reglas; los cinco que solo
+   tienen nombre, código y área comparten PestanaCatalogoSimple, configurado
+   desde aquí. La página se ocupa de lo común: las pestañas con sus conteos y
+   las listas que alimentan los combos. *@
+
+<div class="catalogos">
+    <PanelCard Titulo="Catálogos">
+        @if (_error is not null)
+        {
+            <p class="catalogos__error" role="alert">@_error</p>
+        }
+
+        <TabStrip Pestanas="_pestanas" PestanaActiva="_activa"
+                  PestanaActivaChanged="CambiarPestana" />
+
+        @if (_cargando)
+        {
+            <p class="catalogos__cargando">Cargando catálogos…</p>
+        }
+        else
+        {
+            @* La clave fuerza a recrear el componente al cambiar de pestaña: cada
+               uno carga su propia lista al iniciarse. *@
+            <div @key="_activa" class="catalogos__contenido">
+                @switch (_activa)
+                {
+                    case "Maquinas":
+                        <PestanaMaquinas Selectores="_selectores" OnCambio="RefrescarAsync" />
+                        break;
+
+                    case "Lineas":
+                        <PestanaLineas Selectores="_selectores" OnCambio="RefrescarAsync" />
+                        break;
+
+                    case "Parametros":
+                        <PestanaParametros Selectores="_selectores" OnCambio="RefrescarAsync" />
+                        break;
+
+                    case "Metas":
+                        <PestanaMetas Selectores="_selectores" OnCambio="RefrescarAsync" />
+                        break;
+
+                    case "ItemsChecklist":
+                        <PestanaItemsChecklist Selectores="_selectores" OnCambio="RefrescarAsync" />
+                        break;
+
+                    default:
+                        <PestanaCatalogoSimple Config="Configurar(_activa)"
+                                               Areas="_selectores.Areas"
+                                               OnCambio="RefrescarAsync" />
+                        break;
+                }
+            </div>
+        }
+    </PanelCard>
+</div>
+
+@code {
+    /// <summary>Pestana a abrir al entrar, para poder enlazar directo a un catalogo.</summary>
+    [SupplyParameterFromQuery(Name = "pestana")]
+    private string? PestanaSolicitada { get; set; }
+
+    private List<ResumenCatalogo> _resumen = [];
+    private SelectoresCatalogo _selectores = new();
+    private List<TabItem> _pestanas = [];
+
+    private string _activa = "Maquinas";
+    private bool _cargando = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => RefrescarAsync();
+
+    /// <summary>
+    /// Vuelve a leer los conteos de las pestañas y las listas de los combos. Se
+    /// llama al entrar y cada vez que una pestaña guarda algo: dar de alta una
+    /// línea cambia lo que puede elegir la pestaña de máquinas, y retirar una
+    /// máquina cambia el conteo que se muestra arriba.
+    /// </summary>
+    private async Task RefrescarAsync()
+    {
+        _error = null;
+
+        try
+        {
+            _resumen = await Servicio.ResumenAsync();
+            _selectores = await Servicio.SelectoresAsync();
+
+            _pestanas = _resumen
+                .Select(r => new TabItem(r.Clave, $"{NombreVisible(r)} ({r.Activos})"))
+                .ToList();
+
+            // Llegar con ?pestana= abre ese catálogo (el menú y los enlaces la usan).
+            if (PestanaSolicitada is not null && _pestanas.Any(p => p.Clave == PestanaSolicitada))
+            {
+                _activa = PestanaSolicitada;
+            }
+
+            // Si el catálogo abierto ya no existiera, se vuelve al primero.
+            if (_pestanas.All(p => p.Clave != _activa))
+            {
+                _activa = _pestanas.FirstOrDefault()?.Clave ?? string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// Cambia de pestaña y lo refleja en la dirección, para que la pantalla se
+    /// pueda compartir y para que volver atrás caiga en el catálogo correcto. La
+    /// navegación reemplaza la entrada actual: pasar por diez pestañas no debe
+    /// dejar diez pasos en el historial del navegador.
+    /// </summary>
+    private void CambiarPestana(string clave)
+    {
+        _activa = clave;
+        Navegacion.NavigateTo($"/catalogos?pestana={clave}", replace: true);
+    }
+
+    /// <summary>
+    /// Nombre de la pestaña en español correcto. Los literales de los
+    /// procedimientos van sin acentos (convención del proyecto para evitar
+    /// problemas de codificación en SQL Server), así que el texto que ve el
+    /// usuario se redacta aquí, igual que se hace con los mensajes de error.
+    /// El nombre que devuelve la base queda de respaldo por si se agrega un
+    /// catálogo y todavía no está traducido.
+    /// </summary>
+    private static string NombreVisible(ResumenCatalogo resumen) => resumen.Clave switch
+    {
+        "Maquinas" => "Máquinas",
+        "Lineas" => "Líneas",
+        "Materiales" => "Materiales",
+        "Parametros" => "Parámetros",
+        "Turnos" => "Turnos",
+        "Metas" => "Metas",
+        "Areas" => "Áreas",
+        "TiposDefecto" => "Tipos de defecto",
+        "RazonesTiempoMuerto" => "Razones de tiempo muerto",
+        "ItemsChecklist" => "Ítems de verificación",
+        _ => resumen.Nombre
+    };
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudieron cargar los catálogos. Intente de nuevo o avise a sistemas."
+    };
+
+    /// <summary>
+    /// Configura la pestaña genérica para el catálogo abierto: qué columnas tiene
+    /// sentido dibujar y qué servicio atiende cada operación, de modo que el
+    /// componente no tenga que saber con cuál está trabajando.
+    ///
+    /// La columna de uso no dice lo mismo en todos: en un área son sus máquinas,
+    /// en un tipo de defecto son las no conformidades que lo clasifican. Es el
+    /// dato con el que se decide si conviene retirarlo, así que cada catálogo
+    /// declara el suyo.
+    /// </summary>
+    private CatalogoSimple Configurar(string clave) => clave switch
+    {
+        "Materiales" => new CatalogoSimple
+        {
+            Titulo = "Materiales",
+            Singular = "material",
+            UsaCodigo = true,
+            EncabezadoUso = "Usos",
+            Nota = "Un material retirado deja de ofrecerse en la mezcla; las mezclas ya "
+                 + "capturadas lo siguen nombrando igual.",
+            Cargar = async (busqueda, soloActivos) =>
+                (await Proceso.ListarMaterialesAsync(busqueda, soloActivos))
+                    .Select(m => new FilaCatalogo
+                    {
+                        Id = m.MaterialId,
+                        Codigo = m.Codigo,
+                        Nombre = m.Nombre,
+                        Activo = m.Activo,
+                        Usos = m.Usos,
+                        Detalle = m.UltimoUso is { } fecha ? $"Último uso {fecha:dd/MM/yyyy}" : null
+                    })
+                    .ToList(),
+            Guardar = fila => Proceso.GuardarMaterialAsync(new MaterialCatalogo
+            {
+                MaterialId = fila.Id,
+                Codigo = fila.Codigo,
+                Nombre = fila.Nombre
+            }),
+            CambiarEstado = (fila, activo) => Proceso.CambiarEstadoMaterialAsync(fila.Id, activo)
+        },
+
+        "Turnos" => new CatalogoSimple
+        {
+            Titulo = "Turnos",
+            Singular = "turno",
+            AdmiteBaja = false,
+            EncabezadoUso = "Registros",
+            Nota = "Los turnos se dan de alta y se renombran, pero no se retiran: cat.Turno es "
+                 + "la única tabla de catálogo sin columna de estado. Renombrar uno con "
+                 + "registros cambia cómo se leen esos registros hacia atrás.",
+            Cargar = async (busqueda, _) =>
+                (await Servicio.ListarTurnosAsync(busqueda))
+                    .Select(t => new FilaCatalogo
+                    {
+                        Id = t.TurnoId,
+                        Nombre = t.Nombre,
+                        Usos = t.Registros,
+                        Detalle = t.UltimoRegistro is { } fecha
+                            ? $"Último registro {fecha:dd/MM/yyyy}"
+                            : null
+                    })
+                    .ToList(),
+            Guardar = fila => Servicio.GuardarTurnoAsync(new TurnoCatalogo
+            {
+                TurnoId = fila.Id,
+                Nombre = fila.Nombre
+            }),
+            CambiarEstado = (_, _) => Task.CompletedTask
+        },
+
+        "Areas" => new CatalogoSimple
+        {
+            Titulo = "Áreas",
+            Singular = "área",
+            EncabezadoUso = "Máquinas",
+            Nota = "Un área no se puede retirar mientras tenga líneas o máquinas activas: el "
+                 + "catálogo diría que una máquina en uso pertenece a un área retirada.",
+            Cargar = async (busqueda, soloActivos) =>
+                (await Servicio.ListarAreasAsync(busqueda, soloActivos))
+                    .Select(a => new FilaCatalogo
+                    {
+                        Id = a.AreaId,
+                        Nombre = a.Nombre,
+                        Activo = a.Activo,
+                        Usos = a.Maquinas,
+                        Detalle = $"{a.Lineas} líneas · {a.Parametros} parámetros · "
+                                + $"{a.NoConformidades} no conformidades"
+                    })
+                    .ToList(),
+            Guardar = fila => Servicio.GuardarAreaAsync(new AreaCatalogo
+            {
+                AreaId = fila.Id,
+                Nombre = fila.Nombre
+            }),
+            CambiarEstado = (fila, activo) => Servicio.CambiarEstadoAreaAsync(fila.Id, activo)
+        },
+
+        "TiposDefecto" => new CatalogoSimple
+        {
+            Titulo = "Tipos de defecto",
+            Singular = "tipo de defecto",
+            UsaArea = true,
+            EncabezadoUso = "No conformidades",
+            Nota = "Sin área, el defecto es transversal y se ofrece en todas. Retirarlo no toca "
+                 + "las no conformidades ya clasificadas con él: solo deja de ofrecerse al "
+                 + "registrar una nueva.",
+            Cargar = async (busqueda, soloActivos) =>
+                (await Proceso.ListarTiposDefectoAsync(busqueda, null, soloActivos))
+                    .Select(t => new FilaCatalogo
+                    {
+                        Id = t.TipoDefectoId,
+                        Nombre = t.Nombre,
+                        AreaId = t.AreaId,
+                        AreaNombre = t.AreaNombre,
+                        Activo = t.Activo,
+                        Usos = t.NoConformidades,
+                        Detalle = t.Abiertas > 0 ? $"{t.Abiertas} abiertas" : null
+                    })
+                    .ToList(),
+            Guardar = fila => Proceso.GuardarTipoDefectoAsync(new TipoDefectoCatalogo
+            {
+                TipoDefectoId = fila.Id,
+                Nombre = fila.Nombre,
+                AreaId = fila.AreaId
+            }),
+            CambiarEstado = (fila, activo) => Proceso.CambiarEstadoTipoDefectoAsync(fila.Id, activo)
+        },
+
+        _ => new CatalogoSimple
+        {
+            Titulo = "Razones de tiempo muerto",
+            Singular = "razón",
+            EncabezadoUso = "Usos",
+            Nota = "Este catálogo crece con el uso: cada motivo de paro que la planta identifica "
+                 + "se agrega aquí en lugar de escribirse suelto en un comentario, y así los "
+                 + "paros se pueden sumar y comparar entre turnos.",
+            Cargar = async (busqueda, soloActivos) =>
+                (await Proceso.ListarRazonesTiempoMuertoAsync(busqueda, soloActivos))
+                    .Select(r => new FilaCatalogo
+                    {
+                        Id = r.RazonId,
+                        Nombre = r.Nombre,
+                        Activo = r.Activo,
+                        Usos = r.UsosEnSetup + r.UsosEnProduccion,
+                        Detalle = r.UsosEnSetup + r.UsosEnProduccion > 0
+                            ? $"{r.UsosEnSetup} en setup · {r.UsosEnProduccion} en producción"
+                            : null
+                    })
+                    .ToList(),
+            Guardar = fila => Proceso.GuardarRazonTiempoMuertoAsync(new RazonTiempoMuertoCatalogo
+            {
+                RazonId = fila.Id,
+                Nombre = fila.Nombre
+            }),
+            CambiarEstado = (fila, activo) =>
+                Proceso.CambiarEstadoRazonTiempoMuertoAsync(fila.Id, activo)
+        }
+    };
+}

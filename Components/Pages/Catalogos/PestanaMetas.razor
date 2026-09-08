@@ -1,0 +1,488 @@
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Services.Catalogos
+@using calidad_app.Components.Shared
+@inject IMetaProduccionService Metas
+@inject ICatalogoService Catalogos
+
+@* Metas de desperdicio, material duro, refill y producción. Es contra estos
+   valores que se compara lo que la planta realmente gastó y produjo, así que
+   una meta no se corrige: se reemplaza, y la anterior queda como histórico. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <select class="filtros__select" value="@_conceptoFiltro" @onchange="CambiarConceptoFiltroAsync">
+                <option value="">Todos los conceptos</option>
+                @foreach (var concepto in Selectores.ConceptosMeta)
+                {
+                    <option value="@concepto.Clave">@concepto.Nombre</option>
+                }
+            </select>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloActivas" @onchange="CambiarSoloActivasAsync" />
+                Solo activas
+            </label>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloVigentes" @onchange="CambiarSoloVigentesAsync" />
+                Solo vigentes
+            </label>
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nueva meta
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    <th>Concepto</th>
+                    <th>Ámbito</th>
+                    <th class="tabla-maestro__num">Meta</th>
+                    <th>Vigente desde</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="5" class="tabla-maestro__vacio">Cargando metas…</td></tr>
+                }
+                else if (_metas.Count == 0)
+                {
+                    <tr><td colspan="5" class="tabla-maestro__vacio">Sin metas que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var meta in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(meta)" @onclick="() => Seleccionar(meta)">
+                            <td><span class="tabla-maestro__principal">@NombreConcepto(meta.Concepto)</span></td>
+                            <td>
+                                @meta.Ambito
+                                @if (meta.Especificidad > 0)
+                                {
+                                    <span class="tabla-maestro__secundario">
+                                        Más específica que la general
+                                    </span>
+                                }
+                            </td>
+                            <td class="tabla-maestro__num">@meta.ValorConUnidad</td>
+                            <td>
+                                @meta.VigenteDesde.ToString("dd/MM/yyyy")
+                                @if (!meta.Vigente)
+                                {
+                                    <span class="tabla-maestro__secundario">Programada</span>
+                                }
+                            </td>
+                            <td>
+                                <EstadoChip Texto="@(meta.Activo ? "Vigente" : "Reemplazada")"
+                                            Tono="@(meta.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(_edicion.MetaId == 0 ? "Nueva meta" : $"{NombreConcepto(_edicion.Concepto)} · {_edicion.Ambito}")
+        </h3>
+
+        <label class="campo">
+            <span>Concepto</span>
+            <select value="@_edicion.Concepto"
+                    @onchange="e => _edicion.Concepto = e.Value?.ToString() ?? ConceptosMeta.Desperdicio">
+                @foreach (var concepto in Selectores.ConceptosMeta)
+                {
+                    <option value="@concepto.Clave">@concepto.Nombre</option>
+                }
+            </select>
+        </label>
+
+        <div class="ficha__fila">
+            <label class="campo">
+                <span>Valor</span>
+                <input type="number" step="0.001" min="0"
+                       value="@_edicion.ValorMeta.ToString(CultureInfo.InvariantCulture)"
+                       @onchange="LeerValor" />
+            </label>
+            <label class="campo">
+                <span>Unidad</span>
+                <input type="text" maxlength="20" placeholder="% o kg"
+                       value="@_edicion.Unidad"
+                       @onchange="e => _edicion.Unidad = e.Value?.ToString()" />
+            </label>
+        </div>
+
+        <label class="campo">
+            <span>Línea</span>
+            <select value="@(_edicion.LineaId ?? 0)" @onchange="CambiarLinea">
+                <option value="0">Todas las líneas</option>
+                @foreach (var linea in Selectores.Lineas.Where(l => l.Activo || l.LineaId == _edicion.LineaId))
+                {
+                    <option value="@linea.LineaId">@linea.Etiqueta</option>
+                }
+            </select>
+        </label>
+
+        <label class="campo">
+            <span>Máquina</span>
+            <select value="@(_edicion.MaquinaId ?? 0)"
+                    @onchange="e => _edicion.MaquinaId = LeerIdNulo(e)">
+                <option value="0">Todas las máquinas</option>
+                @foreach (var maquina in MaquinasDelAmbito)
+                {
+                    <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                }
+            </select>
+        </label>
+
+        <label class="campo">
+            <span>Producto</span>
+            <input type="search" placeholder="Buscar por código o nombre…"
+                   value="@_busquedaProducto" @onchange="BuscarProductoAsync" />
+        </label>
+
+        @if (_productos.Count > 0 || _edicion.ProductoId is not null)
+        {
+            <label class="campo">
+                <span>Producto elegido</span>
+                <select value="@(_edicion.ProductoId ?? 0)" @onchange="ElegirProducto">
+                    <option value="0">Todos los productos</option>
+                    @if (_edicion.ProductoId is { } elegido && _productos.All(p => p.ProductoId != elegido))
+                    {
+                        <option value="@elegido">@_edicion.ProductoCodigo - @_edicion.ProductoNombre</option>
+                    }
+                    @foreach (var producto in _productos)
+                    {
+                        <option value="@producto.ProductoId">@producto.Etiqueta</option>
+                    }
+                </select>
+            </label>
+        }
+
+        <label class="campo">
+            <span>Vigente desde</span>
+            <input type="date" value="@_edicion.VigenteDesde.ToString("yyyy-MM-dd")"
+                   @onchange="LeerVigenteDesde" />
+        </label>
+
+        <label class="filtros__check ficha__check">
+            <input type="checkbox" checked="@_reemplazarVigente"
+                   @onchange="e => _reemplazarVigente = e.Value is bool v && v" />
+            Reemplaza a la meta vigente de este concepto y ámbito
+        </label>
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar")
+            </button>
+
+            @if (_edicion.MetaId != 0)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="boton @(_edicion.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@_guardando" @onclick="CambiarEstadoAsync">
+                    @(_edicion.Activo ? "Retirar la meta" : "Reactivar")
+                </button>
+            }
+        </div>
+
+        <p class="ficha__pista">
+            Las metas no se corrigen, se suceden. Al guardar una nueva para un concepto y
+            ámbito que ya tienen meta activa hay que marcar el reemplazo: la anterior queda
+            inactiva pero se conserva, porque lo del mes pasado se sigue midiendo contra la
+            meta que estaba vigente entonces.
+        </p>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SelectoresCatalogo Selectores { get; set; } = new();
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private List<MetaProduccion> _metas = [];
+    private readonly Paginacion<MetaProduccion> _pag = new();
+    private MetaProduccion _edicion = new();
+
+    /// <summary>Resultados de la última búsqueda de producto (el catálogo no cabe en un combo).</summary>
+    private List<ProductoOpcion> _productos = [];
+    private string _busquedaProducto = string.Empty;
+
+    private string _conceptoFiltro = string.Empty;
+    private bool _soloActivas;
+    private bool _soloVigentes;
+    private bool _reemplazarVigente;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    /// <summary>
+    /// Máquinas que puede tomar la meta: si ya se fijó una línea, solo las suyas,
+    /// porque la base rechaza un ámbito que se contradice.
+    /// </summary>
+    private IEnumerable<MaquinaOpcion> MaquinasDelAmbito =>
+        Selectores.Maquinas.Where(m =>
+            (_edicion.LineaId is null || m.LineaId == _edicion.LineaId)
+            && (m.Activo || m.MaquinaId == _edicion.MaquinaId));
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página: la
+    /// página 3 del resultado anterior no significa nada en el resultado nuevo.
+    /// Al recargar tras guardar, en cambio, se conserva la posición.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _metas = await Metas.ListarAsync(
+                string.IsNullOrWhiteSpace(_conceptoFiltro) ? null : _conceptoFiltro,
+                lineaId: null, maquinaId: null, productoId: null,
+                soloActivos: _soloActivas, soloVigentes: _soloVigentes);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_metas);
+            }
+            else
+            {
+                _pag.Actualizar(_metas, m => m.MetaId == _edicion.MetaId && _edicion.MetaId != 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CambiarConceptoFiltroAsync(ChangeEventArgs e)
+    {
+        _conceptoFiltro = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloActivasAsync(ChangeEventArgs e)
+    {
+        _soloActivas = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloVigentesAsync(ChangeEventArgs e)
+    {
+        _soloVigentes = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private void Seleccionar(MetaProduccion meta)
+    {
+        _edicion = Copiar(meta);
+        _reemplazarVigente = false;
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new MetaProduccion
+        {
+            Concepto = string.IsNullOrWhiteSpace(_conceptoFiltro)
+                ? ConceptosMeta.Desperdicio
+                : _conceptoFiltro,
+            Unidad = "%"
+        };
+
+        _reemplazarVigente = false;
+        _error = null;
+        _aviso = null;
+    }
+
+    /// <summary>Cambiar de línea invalida la máquina elegida: pertenecía a la anterior.</summary>
+    private void CambiarLinea(ChangeEventArgs e)
+    {
+        _edicion.LineaId = LeerIdNulo(e);
+        _edicion.MaquinaId = null;
+    }
+
+    private async Task BuscarProductoAsync(ChangeEventArgs e)
+    {
+        _busquedaProducto = e.Value?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_busquedaProducto))
+        {
+            _productos = [];
+            return;
+        }
+
+        try
+        {
+            var selectores = await Catalogos.SelectoresAsync(_busquedaProducto.Trim());
+            _productos = selectores.Productos;
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    private void ElegirProducto(ChangeEventArgs e)
+    {
+        _edicion.ProductoId = LeerIdNulo(e);
+
+        var elegido = _productos.FirstOrDefault(p => p.ProductoId == _edicion.ProductoId);
+        if (elegido is not null)
+        {
+            _edicion.ProductoCodigo = elegido.Codigo;
+            _edicion.ProductoNombre = elegido.Nombre;
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.MetaId == 0;
+            _edicion.MetaId = await Metas.GuardarAsync(_edicion, _reemplazarVigente);
+            _aviso = esAlta ? "Meta registrada." : "Cambios guardados.";
+            _reemplazarVigente = false;
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_edicion.Activo;
+            await Metas.CambiarEstadoAsync(_edicion.MetaId, activar);
+            _aviso = activar ? "Meta reactivada." : "Meta retirada.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task RecargarAsync()
+    {
+        await CargarAsync();
+
+        var actual = _metas.FirstOrDefault(m => m.MetaId == _edicion.MetaId);
+        if (actual is not null)
+        {
+            _edicion = Copiar(actual);
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private void LeerValor(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), NumberStyles.Number,
+                             CultureInfo.InvariantCulture, out var valor))
+        {
+            _edicion.ValorMeta = valor;
+        }
+    }
+
+    private void LeerVigenteDesde(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var fecha))
+        {
+            _edicion.VigenteDesde = fecha;
+        }
+    }
+
+    private string NombreConcepto(string clave) =>
+        Selectores.ConceptosMeta.FirstOrDefault(c => c.Clave == clave)?.Nombre ?? clave;
+
+    private static MetaProduccion Copiar(MetaProduccion m) => new()
+    {
+        MetaId = m.MetaId,
+        Concepto = m.Concepto,
+        ValorMeta = m.ValorMeta,
+        Unidad = m.Unidad,
+        VigenteDesde = m.VigenteDesde,
+        Activo = m.Activo,
+        LineaId = m.LineaId,
+        LineaCodigo = m.LineaCodigo,
+        LineaNombre = m.LineaNombre,
+        MaquinaId = m.MaquinaId,
+        MaquinaCodigo = m.MaquinaCodigo,
+        MaquinaNombre = m.MaquinaNombre,
+        ProductoId = m.ProductoId,
+        ProductoCodigo = m.ProductoCodigo,
+        ProductoNombre = m.ProductoNombre,
+        Especificidad = m.Especificidad,
+        Vigente = m.Vigente
+    };
+
+    private string? ClaseFila(MetaProduccion m) =>
+        m.MetaId == _edicion.MetaId && _edicion.MetaId != 0
+            ? "tabla-maestro__fila--seleccionada"
+            : null;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

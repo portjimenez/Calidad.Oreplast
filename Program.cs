@@ -2,6 +2,7 @@ using calidad_app.Components;
 using calidad_app.Data;
 using calidad_app.Data.Sp;
 using calidad_app.Services.Calidad;
+using calidad_app.Services.Catalogos;
 using calidad_app.Services.Inspeccion;
 using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
@@ -47,6 +48,13 @@ builder.Services.AddScoped<INoConformidadService, NoConformidadService>();
 builder.Services.AddScoped<ILoteService, LoteService>();
 builder.Services.AddScoped<ILiberacionService, LiberacionService>();
 builder.Services.AddScoped<ICertificadoService, CertificadoService>();
+
+// Módulo 4 - Catálogos. La estructura de la planta (áreas, líneas, máquinas y turnos) va
+// en un solo servicio porque forma una jerarquía cuyas reglas se cruzan; las metas van
+// aparte porque no se corrigen sino que se suceden, con vigencia y ámbito propios.
+builder.Services.AddScoped<ICatalogoService, CatalogoService>();
+builder.Services.AddScoped<ICatalogoProcesoService, CatalogoProcesoService>();
+builder.Services.AddScoped<IMetaProduccionService, MetaProduccionService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

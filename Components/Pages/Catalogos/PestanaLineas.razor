@@ -1,0 +1,347 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Services.Catalogos
+@using calidad_app.Components.Shared
+@inject ICatalogoService Catalogos
+
+@* Líneas de producción: agrupan las máquinas que trabajan encadenadas. Es el
+   corte por el que el jefe de producción mira la planta. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <input type="search" class="filtros__busqueda"
+                   placeholder="Código o nombre…"
+                   value="@_busqueda" @onchange="BuscarAsync" />
+            <select class="filtros__select" value="@_areaFiltro" @onchange="CambiarAreaFiltroAsync">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas)
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloActivas" @onchange="CambiarSoloActivasAsync" />
+                Solo activas
+            </label>
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nueva línea
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Área</th>
+                    <th class="tabla-maestro__num">Máquinas</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="5" class="tabla-maestro__vacio">Cargando líneas…</td></tr>
+                }
+                else if (_lineas.Count == 0)
+                {
+                    <tr><td colspan="5" class="tabla-maestro__vacio">Sin líneas que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var linea in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(linea)" @onclick="() => Seleccionar(linea)">
+                            <td><span class="tabla-maestro__principal">@linea.Codigo</span></td>
+                            <td>@linea.Nombre</td>
+                            <td>@linea.AreaNombre</td>
+                            <td class="tabla-maestro__num">
+                                @linea.Maquinas
+                                @if (linea.MaquinasActivas != linea.Maquinas)
+                                {
+                                    <span class="tabla-maestro__secundario">@linea.MaquinasActivas activas</span>
+                                }
+                            </td>
+                            <td>
+                                <EstadoChip Texto="@(linea.Activo ? "Activa" : "Retirada")"
+                                            Tono="@(linea.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(_edicion.LineaId == 0 ? "Nueva línea" : $"{_edicion.Codigo} · {_edicion.Nombre}")
+        </h3>
+
+        <label class="campo">
+            <span>Código</span>
+            <input type="text" maxlength="30"
+                   value="@_edicion.Codigo"
+                   @onchange="e => _edicion.Codigo = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Nombre</span>
+            <input type="text" maxlength="80"
+                   value="@_edicion.Nombre"
+                   @onchange="e => _edicion.Nombre = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Área</span>
+            <select value="@_edicion.AreaId" disabled="@(!PuedeCambiarDeArea)"
+                    @onchange="e => _edicion.AreaId = LeerId(e)">
+                <option value="0">Elija un área…</option>
+                @foreach (var area in Selectores.Areas.Where(a => a.Activo || a.AreaId == _edicion.AreaId))
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+        </label>
+
+        @if (!PuedeCambiarDeArea)
+        {
+            <p class="ficha__pista">
+                La línea ya tiene @_edicion.Maquinas máquinas asignadas, así que no puede
+                cambiar de área: sus máquinas quedarían apuntando a un área que ya no es la
+                suya. Para reorganizar la planta se mueven primero las máquinas.
+            </p>
+        }
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar")
+            </button>
+
+            @if (_edicion.LineaId != 0)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="boton @(_edicion.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@(_guardando || (_edicion.Activo && !_edicion.SePuedeDesactivar))"
+                        @onclick="CambiarEstadoAsync">
+                    @(_edicion.Activo ? "Retirar del catálogo" : "Reincorporar")
+                </button>
+            }
+        </div>
+
+        @if (_edicion.LineaId != 0 && _edicion.Activo && !_edicion.SePuedeDesactivar)
+        {
+            <p class="ficha__pista">
+                No se puede retirar mientras tenga @_edicion.MaquinasActivas máquinas activas
+                asignadas: el catálogo diría que una máquina en uso pertenece a una línea
+                retirada.
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SelectoresCatalogo Selectores { get; set; } = new();
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private List<LineaCatalogo> _lineas = [];
+    private readonly Paginacion<LineaCatalogo> _pag = new();
+    private LineaCatalogo _edicion = new();
+
+    private string _busqueda = string.Empty;
+    private int _areaFiltro;
+    private bool _soloActivas;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private bool PuedeCambiarDeArea => _edicion.LineaId == 0 || _edicion.PuedeCambiarDeArea;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página: la
+    /// página 3 del resultado anterior no significa nada en el resultado nuevo.
+    /// Al recargar tras guardar, en cambio, se conserva la posición.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _lineas = await Catalogos.ListarLineasAsync(
+                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim(),
+                _areaFiltro == 0 ? null : _areaFiltro,
+                _soloActivas);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_lineas);
+            }
+            else
+            {
+                _pag.Actualizar(_lineas, l => l.LineaId == _edicion.LineaId && _edicion.LineaId != 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _busqueda = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarAreaFiltroAsync(ChangeEventArgs e)
+    {
+        _areaFiltro = LeerId(e);
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloActivasAsync(ChangeEventArgs e)
+    {
+        _soloActivas = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private void Seleccionar(LineaCatalogo linea)
+    {
+        _edicion = Copiar(linea);
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new LineaCatalogo
+        {
+            AreaId = _areaFiltro != 0
+                ? _areaFiltro
+                : Selectores.Areas.FirstOrDefault(a => a.Activo)?.AreaId ?? 0
+        };
+
+        _error = null;
+        _aviso = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.LineaId == 0;
+            _edicion.LineaId = await Catalogos.GuardarLineaAsync(_edicion);
+            _aviso = esAlta ? "Línea creada." : "Cambios guardados.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_edicion.Activo;
+            await Catalogos.CambiarEstadoLineaAsync(_edicion.LineaId, activar);
+            _aviso = activar ? "Línea reincorporada." : "Línea retirada del catálogo.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task RecargarAsync()
+    {
+        await CargarAsync();
+
+        var actual = _lineas.FirstOrDefault(l => l.LineaId == _edicion.LineaId);
+        if (actual is not null)
+        {
+            _edicion = Copiar(actual);
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private static LineaCatalogo Copiar(LineaCatalogo l) => new()
+    {
+        LineaId = l.LineaId,
+        Codigo = l.Codigo,
+        Nombre = l.Nombre,
+        AreaId = l.AreaId,
+        AreaNombre = l.AreaNombre,
+        AreaActiva = l.AreaActiva,
+        Activo = l.Activo,
+        Maquinas = l.Maquinas,
+        MaquinasActivas = l.MaquinasActivas,
+        Metas = l.Metas,
+        EnUso = l.EnUso
+    };
+
+    private string? ClaseFila(LineaCatalogo l) =>
+        l.LineaId == _edicion.LineaId && _edicion.LineaId != 0
+            ? "tabla-maestro__fila--seleccionada"
+            : null;
+
+    private static int LeerId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

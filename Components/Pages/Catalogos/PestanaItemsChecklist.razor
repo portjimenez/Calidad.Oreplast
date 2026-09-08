@@ -1,0 +1,392 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Services.Catalogos
+@using calidad_app.Components.Shared
+@inject ICatalogoProcesoService Catalogos
+
+@* Ítems de verificación: las casillas del despeje de línea, del cierre de orden
+   y del control de calidad por bobina. Cada fila de esta tabla es, literalmente,
+   una línea del formato que el operador firma. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <input type="search" class="filtros__busqueda"
+                   placeholder="Código o texto…"
+                   value="@_busqueda" @onchange="BuscarAsync" />
+            <select class="filtros__select" value="@_tipoFiltro" @onchange="CambiarTipoFiltroAsync">
+                <option value="">Todos los tipos</option>
+                @foreach (var tipo in Selectores.TiposItemChecklist)
+                {
+                    <option value="@tipo.Clave">@tipo.Nombre</option>
+                }
+            </select>
+            <select class="filtros__select" value="@_areaFiltro" @onchange="CambiarAreaFiltroAsync">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas)
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_soloActivos" @onchange="CambiarSoloActivosAsync" />
+                Solo activos
+            </label>
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nuevo ítem
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Texto</th>
+                    <th>Tipo</th>
+                    <th class="tabla-maestro__num">Orden</th>
+                    <th class="tabla-maestro__num">Respuestas</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Cargando ítems…</td></tr>
+                }
+                else if (_items.Count == 0)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Sin ítems que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var item in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(item)" @onclick="() => Seleccionar(item)">
+                            <td><span class="tabla-maestro__principal">@item.Codigo</span></td>
+                            <td>
+                                @item.Texto
+                                <span class="tabla-maestro__secundario">@(item.AreaNombre ?? "Todas las áreas")</span>
+                            </td>
+                            <td>@NombreTipo(item.Tipo)</td>
+                            <td class="tabla-maestro__num">@item.Orden</td>
+                            <td class="tabla-maestro__num">@item.Respuestas</td>
+                            <td>
+                                <EstadoChip Texto="@(item.Activo ? "Activo" : "Retirado")"
+                                            Tono="@(item.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(_edicion.ItemId == 0 ? "Nuevo ítem de verificación" : _edicion.Codigo)
+        </h3>
+
+        <label class="campo">
+            <span>Código</span>
+            <input type="text" maxlength="40"
+                   value="@_edicion.Codigo"
+                   @onchange="e => _edicion.Codigo = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Texto de la verificación</span>
+            <textarea rows="3" maxlength="300"
+                      placeholder="Lo que el operador confirma al marcarla…"
+                      value="@_edicion.Texto"
+                      @onchange="e => _edicion.Texto = e.Value?.ToString() ?? string.Empty"></textarea>
+        </label>
+
+        <label class="campo">
+            <span>Tipo</span>
+            <select value="@_edicion.Tipo" disabled="@(!PuedeCambiarTipo)"
+                    @onchange="e => _edicion.Tipo = e.Value?.ToString() ?? TiposItemChecklist.DespejeLinea">
+                @foreach (var tipo in Selectores.TiposItemChecklist)
+                {
+                    <option value="@tipo.Clave">@tipo.Nombre</option>
+                }
+            </select>
+        </label>
+
+        @if (!PuedeCambiarTipo)
+        {
+            <p class="ficha__pista">
+                El tipo queda fijo: el ítem ya tiene @_edicion.Respuestas respuestas y
+                moverlo dejaría esas firmas colgando de una sección a la que ya no
+                pertenece.
+            </p>
+        }
+
+        <label class="campo">
+            <span>Área</span>
+            <select value="@(_edicion.AreaId ?? 0)"
+                    @onchange="e => _edicion.AreaId = LeerIdNulo(e)">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas.Where(a => a.Activo || a.AreaId == _edicion.AreaId))
+                {
+                    <option value="@area.AreaId">@area.Nombre</option>
+                }
+            </select>
+        </label>
+
+        <label class="campo">
+            <span>Orden en el formato</span>
+            <input type="number" step="10" min="0"
+                   value="@_edicion.Orden"
+                   @onchange="e => _edicion.Orden = LeerEntero(e)" />
+        </label>
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar")
+            </button>
+
+            @if (_edicion.ItemId != 0)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="boton @(_edicion.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@_guardando" @onclick="CambiarEstadoAsync">
+                    @(_edicion.Activo ? "Quitar del formato" : "Reincorporar")
+                </button>
+            }
+        </div>
+
+        <p class="ficha__pista">
+            Quitar un ítem del formato deja de pedirlo en los registros nuevos y no toca
+            los ya firmados, donde la respuesta se conserva.
+        </p>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SelectoresCatalogo Selectores { get; set; } = new();
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private List<ItemChecklistCatalogo> _items = [];
+    private readonly Paginacion<ItemChecklistCatalogo> _pag = new();
+    private ItemChecklistCatalogo _edicion = new();
+
+    private string _busqueda = string.Empty;
+    private string _tipoFiltro = string.Empty;
+    private int _areaFiltro;
+    private bool _soloActivos;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private bool PuedeCambiarTipo => _edicion.ItemId == 0 || _edicion.PuedeCambiarTipo;
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página: la
+    /// página 3 del resultado anterior no significa nada en el resultado nuevo.
+    /// Al recargar tras guardar, en cambio, se conserva la posición.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _items = await Catalogos.ListarItemsChecklistAsync(
+                string.IsNullOrWhiteSpace(_tipoFiltro) ? null : _tipoFiltro,
+                _areaFiltro == 0 ? null : _areaFiltro,
+                string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim(),
+                _soloActivos);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_items);
+            }
+            else
+            {
+                _pag.Actualizar(_items, i => i.ItemId == _edicion.ItemId && _edicion.ItemId != 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _busqueda = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarTipoFiltroAsync(ChangeEventArgs e)
+    {
+        _tipoFiltro = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarAreaFiltroAsync(ChangeEventArgs e)
+    {
+        _areaFiltro = LeerEntero(e);
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloActivosAsync(ChangeEventArgs e)
+    {
+        _soloActivos = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private void Seleccionar(ItemChecklistCatalogo item)
+    {
+        _edicion = Copiar(item);
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new ItemChecklistCatalogo
+        {
+            Tipo = string.IsNullOrWhiteSpace(_tipoFiltro) ? TiposItemChecklist.DespejeLinea : _tipoFiltro,
+            AreaId = _areaFiltro == 0 ? null : _areaFiltro,
+            Orden = SiguienteOrden()
+        };
+
+        _error = null;
+        _aviso = null;
+    }
+
+    /// <summary>
+    /// De diez en diez dentro del mismo tipo: el orden es el del formato en
+    /// papel, y dejar hueco permite intercalar una casilla nueva sin renumerar
+    /// las demás.
+    /// </summary>
+    private int SiguienteOrden()
+    {
+        var delTipo = _items.Where(i => i.Tipo == _edicion.Tipo).ToList();
+        return delTipo.Count == 0 ? 10 : delTipo.Max(i => i.Orden) + 10;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.ItemId == 0;
+            _edicion.ItemId = await Catalogos.GuardarItemChecklistAsync(_edicion);
+            _aviso = esAlta ? "Ítem creado." : "Cambios guardados.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_edicion.Activo;
+            await Catalogos.CambiarEstadoItemChecklistAsync(_edicion.ItemId, activar);
+            _aviso = activar ? "Ítem reincorporado al formato." : "Ítem quitado del formato.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task RecargarAsync()
+    {
+        await CargarAsync();
+
+        var actual = _items.FirstOrDefault(i => i.ItemId == _edicion.ItemId);
+        if (actual is not null)
+        {
+            _edicion = Copiar(actual);
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private string NombreTipo(string clave) =>
+        Selectores.TiposItemChecklist.FirstOrDefault(t => t.Clave == clave)?.Nombre ?? clave;
+
+    private static ItemChecklistCatalogo Copiar(ItemChecklistCatalogo i) => new()
+    {
+        ItemId = i.ItemId,
+        Codigo = i.Codigo,
+        Texto = i.Texto,
+        Tipo = i.Tipo,
+        AreaId = i.AreaId,
+        AreaNombre = i.AreaNombre,
+        Orden = i.Orden,
+        Activo = i.Activo,
+        Respuestas = i.Respuestas,
+        EnUso = i.EnUso
+    };
+
+    private string? ClaseFila(ItemChecklistCatalogo i) =>
+        i.ItemId == _edicion.ItemId && _edicion.ItemId != 0
+            ? "tabla-maestro__fila--seleccionada"
+            : null;
+
+    private static int LeerEntero(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var valor) ? valor : 0;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

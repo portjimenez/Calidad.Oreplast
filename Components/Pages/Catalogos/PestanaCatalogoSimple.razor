@@ -1,0 +1,351 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Components.Shared
+
+@* Tabla y formulario de los catálogos que solo tienen nombre, a veces código y
+   a veces área. Qué catálogo es y cómo se guarda llega en Config, armado por la
+   página: así los cinco comparten una sola pantalla en lugar de repetirla. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <input type="search" class="filtros__busqueda"
+                   placeholder="Buscar…"
+                   value="@_busqueda"
+                   @onchange="BuscarAsync" />
+            @if (Config.AdmiteBaja)
+            {
+                <label class="filtros__check">
+                    <input type="checkbox" checked="@_soloActivos" @onchange="CambiarSoloActivosAsync" />
+                    Solo activos
+                </label>
+            }
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nuevo @Config.Singular
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    @if (Config.UsaCodigo)
+                    {
+                        <th>Código</th>
+                    }
+                    <th>Nombre</th>
+                    @if (Config.UsaArea)
+                    {
+                        <th>Área</th>
+                    }
+                    <th class="tabla-maestro__num">@Config.EncabezadoUso</th>
+                    @if (Config.AdmiteBaja)
+                    {
+                        <th>Estado</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="@Columnas" class="tabla-maestro__vacio">Cargando…</td></tr>
+                }
+                else if (_filas.Count == 0)
+                {
+                    <tr><td colspan="@Columnas" class="tabla-maestro__vacio">Sin elementos que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var fila in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(fila)" @onclick="() => Seleccionar(fila)">
+                            @if (Config.UsaCodigo)
+                            {
+                                <td><span class="tabla-maestro__principal">@fila.Codigo</span></td>
+                            }
+                            <td>
+                                @fila.Nombre
+                                @if (fila.Detalle is not null)
+                                {
+                                    <span class="tabla-maestro__secundario">@fila.Detalle</span>
+                                }
+                            </td>
+                            @if (Config.UsaArea)
+                            {
+                                <td>@(fila.AreaNombre ?? "Todas")</td>
+                            }
+                            <td class="tabla-maestro__num">@fila.Usos</td>
+                            @if (Config.AdmiteBaja)
+                            {
+                                <td>
+                                    <EstadoChip Texto="@(fila.Activo ? "Activo" : "Retirado")"
+                                                Tono="@(fila.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(_edicion.Id == 0 ? $"Nuevo {Config.Singular}" : _edicion.Nombre)
+        </h3>
+
+        @if (Config.UsaCodigo)
+        {
+            <label class="campo">
+                <span>Código</span>
+                <input type="text" maxlength="40"
+                       value="@_edicion.Codigo"
+                       @onchange="e => _edicion.Codigo = e.Value?.ToString() ?? string.Empty" />
+            </label>
+        }
+
+        <label class="campo">
+            <span>Nombre</span>
+            <input type="text" maxlength="150"
+                   value="@_edicion.Nombre"
+                   @onchange="e => _edicion.Nombre = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        @if (Config.UsaArea)
+        {
+            <label class="campo">
+                <span>Área</span>
+                <select value="@(_edicion.AreaId ?? 0)"
+                        @onchange="e => _edicion.AreaId = LeerAreaId(e)">
+                    <option value="0">Todas las áreas</option>
+                    @foreach (var area in Areas.Where(a => a.Activo || a.AreaId == _edicion.AreaId))
+                    {
+                        <option value="@area.AreaId">@area.Nombre</option>
+                    }
+                </select>
+            </label>
+        }
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar")
+            </button>
+
+            @if (_edicion.Id != 0)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+            }
+
+            @if (Config.AdmiteBaja && _edicion.Id != 0)
+            {
+                <button type="button"
+                        class="boton @(_edicion.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@_guardando"
+                        @onclick="CambiarEstadoAsync">
+                    @(_edicion.Activo ? "Retirar del catálogo" : "Reincorporar")
+                </button>
+            }
+        </div>
+
+        @if (_edicion.Id != 0 && _edicion.Usos > 0)
+        {
+            <p class="ficha__pista">
+                Se ha usado @_edicion.Usos @(_edicion.Usos == 1 ? "vez" : "veces").
+                Lo ya registrado no cambia al retirarlo.
+            </p>
+        }
+
+        @if (Config.Nota is not null)
+        {
+            <p class="ficha__pista">@Config.Nota</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public CatalogoSimple Config { get; set; } = default!;
+
+    /// <summary>Áreas para el combo, solo en los catálogos que se acotan por área.</summary>
+    [Parameter] public List<AreaOpcion> Areas { get; set; } = [];
+
+    /// <summary>Avisa a la página para que refresque los conteos de las pestañas.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private List<FilaCatalogo> _filas = [];
+    private readonly Paginacion<FilaCatalogo> _pag = new();
+
+    /// <summary>
+    /// El formulario trabaja sobre una copia: mientras se escribe, la fila de la
+    /// tabla tiene que seguir mostrando lo que la base aceptó.
+    /// </summary>
+    private FilaCatalogo _edicion = new();
+
+    private string _busqueda = string.Empty;
+    private bool _soloActivos;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private int Columnas =>
+        2 + (Config.UsaCodigo ? 1 : 0) + (Config.UsaArea ? 1 : 0) + (Config.AdmiteBaja ? 1 : 0);
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página: la
+    /// página 3 del resultado anterior no significa nada en el resultado nuevo.
+    /// Al recargar tras guardar, en cambio, se conserva la posición.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _filas = await Config.Cargar(string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda.Trim(),
+                                         _soloActivos);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_filas);
+            }
+            else
+            {
+                // Deja a la vista la fila que se está editando, aunque el orden
+                // de la lista haya cambiado.
+                _pag.Actualizar(_filas, f => f.Id == _edicion.Id && _edicion.Id != 0);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _busqueda = e.Value?.ToString() ?? string.Empty;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloActivosAsync(ChangeEventArgs e)
+    {
+        _soloActivos = e.Value is bool valor && valor;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private void Seleccionar(FilaCatalogo fila)
+    {
+        _edicion = fila.Copiar();
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new FilaCatalogo { AreaId = null };
+        _error = null;
+        _aviso = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.Id == 0;
+            _edicion.Id = await Config.Guardar(_edicion);
+            _aviso = esAlta ? $"Se creó el {Config.Singular}." : "Cambios guardados.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_edicion.Activo;
+            await Config.CambiarEstado(_edicion, activar);
+            _edicion.Activo = activar;
+            _aviso = activar ? "Elemento reincorporado." : "Elemento retirado del catálogo.";
+
+            await RecargarAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>
+    /// Vuelve a leer la lista y avisa a la página: los conteos de las pestañas y
+    /// los combos de las demás dejan de ser ciertos en cuanto se guarda aquí.
+    /// </summary>
+    private async Task RecargarAsync()
+    {
+        await CargarAsync();
+
+        var actual = _filas.FirstOrDefault(f => f.Id == _edicion.Id);
+        if (actual is not null)
+        {
+            _edicion = actual.Copiar();
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private string? ClaseFila(FilaCatalogo fila) =>
+        fila.Id == _edicion.Id && _edicion.Id != 0 ? "tabla-maestro__fila--seleccionada" : null;
+
+    private static int? LeerAreaId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

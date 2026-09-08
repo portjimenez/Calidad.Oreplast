@@ -11,10 +11,11 @@ namespace calidad_app.Data.Sp;
 /// y cambiar la redacción no obliga a tocar la base.
 ///
 /// Cada módulo mantiene su propio catálogo (<see cref="ErroresInspeccion"/>,
-/// <see cref="ErroresCalidad"/>) y aquí se consultan en orden. Si aparece un
-/// número sin traducir se usa el mensaje original del procedimiento, que ya es
-/// legible: es lo que ocurre a propósito con el error 50148, cuyo texto trae la
-/// lista de lo que impide liberar el registro.
+/// <see cref="ErroresCalidad"/>, <see cref="ErroresCatalogos"/>) y aquí se
+/// consultan en orden. Si aparece un número sin traducir se usa el mensaje
+/// original del procedimiento, que ya es legible: es lo que ocurre a propósito
+/// con el error 50148, cuyo texto trae la lista de lo que impide liberar el
+/// registro.
 /// </summary>
 public static class ErroresSp
 {
@@ -37,6 +38,7 @@ public static class ErroresSp
         var mensaje =
             ErroresInspeccion.Mensajes.TryGetValue(ex.Number, out var inspeccion) ? inspeccion :
             ErroresCalidad.Mensajes.TryGetValue(ex.Number, out var calidad) ? calidad :
+            ErroresCatalogos.Mensajes.TryGetValue(ex.Number, out var catalogos) ? catalogos :
             ex.Message;
 
         return new ReglaNegocioException(mensaje, ex.Number);

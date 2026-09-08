@@ -1,0 +1,308 @@
+/* Estilos de toda la pantalla de catálogos.
+   Van en un solo archivo, con ::deep, porque las pestañas son componentes hijos
+   sin CSS propio: la tabla y el formulario se ven igual en las diez, y tenerlos
+   aquí evita repetir el mismo bloque en cada una. */
+
+.catalogos {
+    display: flex;
+    flex-direction: column;
+}
+
+.catalogos__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border-bottom: 1px solid var(--op-peligro-fg);
+}
+
+.catalogos__cargando {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Reparto de la pestaña: tabla a la izquierda, ficha a la derecha ---- */
+.catalogos ::deep .catalogo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.catalogos ::deep .catalogo__lista {
+    flex: 1 1 30rem;
+    min-width: 0;
+}
+
+.catalogos ::deep .catalogo__ficha {
+    flex: 0 0 19rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    border-left: 1px solid var(--op-borde);
+    align-self: stretch;
+}
+
+/* ---- Filtros ---- */
+.catalogos ::deep .filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.catalogos ::deep .filtros__busqueda {
+    flex: 1 1 9rem;
+    min-width: 8rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.catalogos ::deep .filtros__select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+.catalogos ::deep .filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.catalogos ::deep .filtros__nuevo {
+    margin-left: auto;
+}
+
+/* ---- Tabla del catálogo ---- */
+.catalogos ::deep .tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.catalogos ::deep .tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.catalogos ::deep .tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.catalogos ::deep .tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.catalogos ::deep .tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.catalogos ::deep .tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.catalogos ::deep .tabla-maestro__fila--seleccionada,
+.catalogos ::deep .tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.catalogos ::deep .tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.catalogos ::deep .tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.catalogos ::deep .tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.catalogos ::deep .tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Ficha de edición ---- */
+.catalogos ::deep .ficha__titulo {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}
+
+.catalogos ::deep .ficha__error,
+.catalogos ::deep .ficha__aviso {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.catalogos ::deep .ficha__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.catalogos ::deep .ficha__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.catalogos ::deep .ficha__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.catalogos ::deep .ficha__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-top: 0.3rem;
+}
+
+/* Dos campos cortos en la misma línea (valor y unidad de una meta). */
+.catalogos ::deep .ficha__fila {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.catalogos ::deep .ficha__fila .campo {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.catalogos ::deep .ficha__check {
+    color: var(--op-texto);
+    line-height: 1.35;
+}
+
+/* ---- Campos ---- */
+.catalogos ::deep .campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.catalogos ::deep .campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.catalogos ::deep .campo input,
+.catalogos ::deep .campo select,
+.catalogos ::deep .campo textarea {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.catalogos ::deep .campo textarea {
+    resize: vertical;
+}
+
+/* Un campo deshabilitado no es un campo apagado: es un dato que ya no se puede
+   cambiar porque hay historia detrás. La pista de al lado explica por qué. */
+.catalogos ::deep .campo input:disabled,
+.catalogos ::deep .campo select:disabled {
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    cursor: not-allowed;
+}
+
+/* ---- Botones ---- */
+.catalogos ::deep .boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.catalogos ::deep .boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.catalogos ::deep .boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.catalogos ::deep .boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.catalogos ::deep .boton--fantasma {
+    background: #fff;
+}
+
+.catalogos ::deep .boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+.catalogos ::deep .boton--enlace-peligro {
+    border-color: transparent;
+    background: transparent;
+    color: var(--op-peligro-fg);
+    padding: 0.35rem 0.4rem;
+}
+
+.catalogos ::deep .boton--enlace-peligro:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+/* En pantallas angostas la ficha pasa debajo de la tabla, a ancho completo. */
+@media (max-width: 60rem) {
+    .catalogos ::deep .catalogo__ficha {
+        flex: 1 1 100%;
+        border-left: none;
+        border-top: 1px solid var(--op-borde);
+    }
+}
