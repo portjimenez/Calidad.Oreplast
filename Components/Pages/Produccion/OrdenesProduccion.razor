@@ -1,0 +1,891 @@
+@page "/ordenes-produccion"
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Catalogos
+@using calidad_app.Models.Produccion
+@using calidad_app.Services.Produccion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "VER_ORDENES")]
+@inject IOrdenService Ordenes
+@inject ICatalogoProduccionService Catalogos
+
+<PageTitle>Órdenes de producción</PageTitle>
+
+@* Seguimiento de las órdenes. Es distinta del buscador del módulo 2: aquel
+   sirve para que el operador encuentre SU orden; esta responde cuánto lleva
+   avanzada cada una y permite abrirlas y corregirlas.
+
+   El avance no se almacena: se calcula sumando el peso de las bobinas
+   confirmadas de todos los registros de la orden. *@
+
+<div class="ordenes">
+    <MaestroDetalle>
+        <Maestro>
+            <PanelCard Titulo="Órdenes de producción">
+                <div class="resumen">
+                    <div class="resumen__dato">
+                        <span class="resumen__valor">@_resumen.Abiertas</span>
+                        <span class="resumen__etiqueta">Abiertas</span>
+                    </div>
+                    <div class="resumen__dato">
+                        <span class="resumen__valor">@_resumen.EnProceso</span>
+                        <span class="resumen__etiqueta">En proceso</span>
+                    </div>
+                    <div class="resumen__dato">
+                        <span class="resumen__valor">@Kg(_resumen.KgProducidos)</span>
+                        <span class="resumen__etiqueta">
+                            kg producidos de @Kg(_resumen.KgProgramados)
+                        </span>
+                    </div>
+                    <div class="resumen__dato @(_resumen.LotesSinLiberar > 0 ? "resumen__dato--alerta" : null)">
+                        <span class="resumen__valor">@_resumen.LotesSinLiberar</span>
+                        <span class="resumen__etiqueta">Lotes sin liberar</span>
+                    </div>
+                </div>
+
+                <div class="filtros">
+                    <input type="search" class="filtros__busqueda"
+                           placeholder="Número de OP, producto o cliente…"
+                           value="@_filtro.Busqueda"
+                           @onchange="BuscarAsync" />
+
+                    <select class="filtros__select" value="@(_filtro.Estado ?? "")"
+                            @onchange="CambiarEstadoFiltroAsync">
+                        <option value="">Todos los estados</option>
+                        @foreach (var estado in _selectores.EstadosOrden)
+                        {
+                            <option value="@estado.Clave">@estado.Nombre</option>
+                        }
+                    </select>
+
+                    <label class="filtros__check">
+                        <input type="checkbox" checked="@_filtro.SoloConPendientes"
+                               @onchange="CambiarSoloPendientesAsync" />
+                        Con trabajo abierto
+                    </label>
+
+                    @if (_puedeGestionar)
+                    {
+                        <button type="button" class="boton boton--primario filtros__nuevo"
+                                @onclick="AbrirAlta">
+                            Nueva orden
+                        </button>
+                    }
+                </div>
+
+                <table class="tabla-maestro">
+                    <thead>
+                        <tr>
+                            <th>Orden</th>
+                            <th>Producto</th>
+                            <th class="tabla-maestro__num">Avance</th>
+                            <th class="tabla-maestro__num">Registros</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_cargando)
+                        {
+                            <tr><td colspan="5" class="tabla-maestro__vacio">Cargando órdenes…</td></tr>
+                        }
+                        else if (_ordenes.Count == 0)
+                        {
+                            <tr><td colspan="5" class="tabla-maestro__vacio">Sin órdenes que coincidan.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var orden in _pag.Elementos)
+                            {
+                                <tr class="@ClaseFila(orden)" @onclick="() => SeleccionarAsync(orden.OrdenId)">
+                                    <td>
+                                        <span class="tabla-maestro__principal">@orden.NumeroOP</span>
+                                        <span class="tabla-maestro__secundario">@orden.ClienteNombre</span>
+                                    </td>
+                                    <td>
+                                        @orden.ProductoCodigo
+                                        <span class="tabla-maestro__secundario">@orden.ProductoNombre</span>
+                                    </td>
+                                    <td class="tabla-maestro__num">
+                                        @if (orden.PorcentajeAvance is { } pct)
+                                        {
+                                            <span class="@(pct >= 100 ? "avance--completo" : null)">@pct.ToString("0.#") %</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tabla-maestro__secundario">Sin programar</span>
+                                        }
+                                        <span class="tabla-maestro__secundario">
+                                            @Kg(orden.KgProducidos) kg
+                                        </span>
+                                    </td>
+                                    <td class="tabla-maestro__num">
+                                        @orden.Registros
+                                        @if (orden.RegistrosAbiertos > 0)
+                                        {
+                                            <span class="tabla-maestro__secundario">
+                                                @orden.RegistrosAbiertos abierto(s)
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <EstadoChip Texto="@TextoEstado(orden.Estado)" Tono="@TonoEstado(orden.Estado)" />
+                                        @if (orden.NoConformidadesAbiertas > 0)
+                                        {
+                                            <span class="tabla-maestro__secundario">
+                                                @orden.NoConformidadesAbiertas NC abierta(s)
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+
+                <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+            </PanelCard>
+        </Maestro>
+
+        <Detalle>
+            @if (_error is not null)
+            {
+                <p class="ficha__error" role="alert">@_error</p>
+            }
+            @if (_aviso is not null)
+            {
+                <p class="ficha__aviso" role="status">@_aviso</p>
+            }
+
+            @if (_modoEdicion)
+            {
+                <PanelCard Titulo="@(_edicion.OrdenId == 0 ? "Nueva orden" : $"Editar {_edicion.NumeroOP}")"
+                           Cerrable="true" OnCerrar="CerrarEdicion">
+                    <div class="ficha">
+                        <label class="campo">
+                            <span>Número de OP</span>
+                            <input type="text" maxlength="40" value="@_edicion.NumeroOP"
+                                   @onchange="e => _edicion.NumeroOP = e.Value?.ToString() ?? string.Empty" />
+                        </label>
+
+                        <label class="campo">
+                            <span>Cliente</span>
+                            <select value="@_edicion.ClienteId" disabled="@_bloqueaProductoYCliente"
+                                    @onchange="e => _edicion.ClienteId = LeerId(e)">
+                                <option value="0">Elija un cliente…</option>
+                                @foreach (var cliente in _selectores.Clientes)
+                                {
+                                    <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label class="campo">
+                            <span>Buscar producto</span>
+                            <input type="search" placeholder="Código o nombre…" disabled="@_bloqueaProductoYCliente"
+                                   value="@_busquedaProducto" @onchange="BuscarProductoAsync" />
+                        </label>
+
+                        <label class="campo">
+                            <span>Producto</span>
+                            <select value="@_edicion.ProductoId" disabled="@_bloqueaProductoYCliente"
+                                    @onchange="e => _edicion.ProductoId = LeerId(e)">
+                                <option value="0">Elija un producto…</option>
+                                @* El producto que ya trae la orden puede no estar en la última
+                                   búsqueda; se agrega para no perderlo al guardar. *@
+                                @if (_productoActual is { } actual && _productos.All(p => p.ProductoId != actual.ProductoId))
+                                {
+                                    <option value="@actual.ProductoId">@actual.Etiqueta</option>
+                                }
+                                @foreach (var producto in _productos)
+                                {
+                                    <option value="@producto.ProductoId">@producto.Etiqueta</option>
+                                }
+                            </select>
+                        </label>
+
+                        <label class="campo">
+                            <span>Kilos programados</span>
+                            <input type="number" step="0.001" min="0"
+                                   value="@_edicion.KgProgramados?.ToString(CultureInfo.InvariantCulture)"
+                                   @onchange="LeerKgProgramados" />
+                        </label>
+
+                        @if (_bloqueaProductoYCliente)
+                        {
+                            <p class="ficha__pista">
+                                Esta orden ya tiene registros de inspección, así que su producto y su
+                                cliente quedan fijos: los parámetros medidos se comparan contra la ficha
+                                técnica del producto, y cambiarlo dejaría las bobinas ya producidas
+                                atribuidas a un producto que nunca se corrió. Los kilos programados sí
+                                se pueden corregir.
+                            </p>
+                        }
+
+                        <div class="ficha__acciones">
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@_guardando" @onclick="GuardarAsync">
+                                @(_guardando ? "Guardando…" : "Guardar")
+                            </button>
+                            <button type="button" class="boton boton--fantasma"
+                                    disabled="@_guardando" @onclick="CerrarEdicion">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </PanelCard>
+            }
+            else if (_detalle is null)
+            {
+                <PanelCard Titulo="Detalle de la orden">
+                    <p class="vacio">
+                        Elija una orden de la lista para ver su avance y la trazabilidad de lo
+                        que se produjo en ella.
+                    </p>
+                </PanelCard>
+            }
+            else
+            {
+                <PanelCard Titulo="@($"Orden {_detalle.NumeroOP}")" Cerrable="true" OnCerrar="Cerrar">
+                    <div class="expediente">
+                        <div class="expediente__encabezado">
+                            <div class="expediente__datos">
+                                <p class="expediente__producto">@_detalle.Producto</p>
+                                <p class="expediente__cliente">@_detalle.ClienteNombre</p>
+                                @if (!_detalle.ProductoConFicha)
+                                {
+                                    <p class="expediente__sin-ficha">
+                                        El producto no tiene ficha técnica activa: la inspección no podrá
+                                        comparar los parámetros contra tolerancias.
+                                    </p>
+                                }
+                            </div>
+                            <EstadoChip Texto="@TextoEstado(_detalle.Estado)" Tono="@TonoEstado(_detalle.Estado)" />
+                        </div>
+
+                        <div class="metricas">
+                            <div class="metricas__dato">
+                                <span class="metricas__valor">@Kg(_detalle.KgProducidos)</span>
+                                <span class="metricas__etiqueta">kg producidos</span>
+                            </div>
+                            <div class="metricas__dato">
+                                <span class="metricas__valor">@Kg(_detalle.KgProgramados)</span>
+                                <span class="metricas__etiqueta">kg programados</span>
+                            </div>
+                            <div class="metricas__dato">
+                                <span class="metricas__valor">
+                                    @(_detalle.PorcentajeAvance?.ToString("0.#") ?? "—") %
+                                </span>
+                                <span class="metricas__etiqueta">avance</span>
+                            </div>
+                            <div class="metricas__dato">
+                                <span class="metricas__valor">@Kg(_detalle.KgDesperdicio)</span>
+                                <span class="metricas__etiqueta">kg desperdicio</span>
+                            </div>
+                        </div>
+
+                        @if (_puedeGestionar)
+                        {
+                            <div class="ficha__acciones">
+                                @if (_detalle.Estado != EstadosOrden.Cerrada)
+                                {
+                                    <button type="button" class="boton boton--fantasma"
+                                            disabled="@_guardando" @onclick="AbrirEdicion">
+                                        Editar
+                                    </button>
+                                }
+
+                                @if (_detalle.PuedeCerrarse)
+                                {
+                                    <button type="button" class="boton boton--fantasma"
+                                            disabled="@_guardando" @onclick="CerrarOrdenAsync">
+                                        Cerrar anticipadamente
+                                    </button>
+                                }
+
+                                @if (_detalle.Estado == EstadosOrden.Cerrada)
+                                {
+                                    <div class="reapertura">
+                                        <label class="campo">
+                                            <span>Motivo de la reapertura</span>
+                                            <input type="text" maxlength="300"
+                                                   placeholder="Por qué se reabre esta orden…"
+                                                   value="@_motivoReapertura"
+                                                   @onchange="e => _motivoReapertura = e.Value?.ToString() ?? string.Empty" />
+                                        </label>
+                                        <button type="button" class="boton boton--fantasma"
+                                                disabled="@(_guardando || string.IsNullOrWhiteSpace(_motivoReapertura))"
+                                                @onclick="ReabrirAsync">
+                                            Reabrir
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+
+                            @if (_detalle.Estado != EstadosOrden.Cerrada && !_detalle.PuedeCerrarse)
+                            {
+                                <p class="ficha__pista">
+                                    No se puede cerrar todavía: quedan @_detalle.RegistrosAbiertos registro(s)
+                                    de inspección abiertos y @_detalle.LotesSinLiberar lote(s) sin liberar.
+                                    El sistema cierra la orden solo cuando Calidad firme el último cierre.
+                                </p>
+                            }
+                        }
+
+                        <TabStrip Pestanas="_pestanas" PestanaActiva="@_pestana"
+                                  PestanaActivaChanged="@(clave => _pestana = clave)" />
+
+                        <div @key="_pestana" class="expediente__contenido">
+                            @switch (_pestana)
+                            {
+                                case "Registros":
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Registro</th>
+                                                <th>Máquina / turno</th>
+                                                <th>Operador</th>
+                                                <th class="tabla-maestro__num">kg</th>
+                                                <th>Liberación</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (_detalle.RegistrosDeInspeccion.Count == 0)
+                                            {
+                                                <tr><td colspan="5" class="tabla-maestro__vacio">
+                                                    Esta orden todavía no tiene registros de inspección.
+                                                </td></tr>
+                                            }
+                                            @foreach (var registro in _detalle.RegistrosDeInspeccion)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="tabla-maestro__principal">@registro.IdRegistro</span>
+                                                        <span class="tabla-maestro__secundario">
+                                                            @registro.Fecha.ToString("dd/MM/yyyy")
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        @registro.MaquinaCodigo
+                                                        <span class="tabla-maestro__secundario">@registro.TurnoNombre</span>
+                                                    </td>
+                                                    <td>@registro.OperadorNombre</td>
+                                                    <td class="tabla-maestro__num">
+                                                        @Kg(registro.KgProducidos)
+                                                        <span class="tabla-maestro__secundario">
+                                                            @registro.Bobinas bobina(s)
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        @if (registro.CierreFirmado)
+                                                        {
+                                                            <EstadoChip Texto="Cierre firmado" Tono="TonoChip.Exito" />
+                                                        }
+                                                        else if (registro.DespejeFirmado)
+                                                        {
+                                                            <EstadoChip Texto="Despeje firmado" Tono="TonoChip.Advertencia" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <EstadoChip Texto="Sin liberar" Tono="TonoChip.Neutro" />
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                    break;
+
+                                case "Lotes":
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Lote</th>
+                                                <th>Fecha</th>
+                                                <th class="tabla-maestro__num">Bobinas</th>
+                                                <th class="tabla-maestro__num">kg</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (_detalle.LotesDeLaOrden.Count == 0)
+                                            {
+                                                <tr><td colspan="5" class="tabla-maestro__vacio">
+                                                    Todavía no se ha abierto ningún lote sobre esta orden.
+                                                </td></tr>
+                                            }
+                                            @foreach (var lote in _detalle.LotesDeLaOrden)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <a class="enlace" href="@($"/trazabilidad-lote?lote={lote.LoteId}")">
+                                                            @lote.CodigoLote
+                                                        </a>
+                                                        @if (lote.TieneCertificado)
+                                                        {
+                                                            <span class="tabla-maestro__secundario">
+                                                                Certificado @lote.CertificadoCodigo
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                    <td>@(lote.FechaProduccion?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                                    <td class="tabla-maestro__num">
+                                                        @lote.TotalBobinas
+                                                        @if (lote.BobinasNoConformes > 0)
+                                                        {
+                                                            <span class="tabla-maestro__secundario">
+                                                                @lote.BobinasNoConformes no conforme(s)
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                    <td class="tabla-maestro__num">@Kg(lote.PesoTotal)</td>
+                                                    <td>
+                                                        <EstadoChip Texto="@TextoEstadoLote(lote.Estado)"
+                                                                    Tono="@TonoLote(lote.Estado)" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                    break;
+
+                                case "Bobinas":
+                                    <p class="bloque__pista">
+                                        El nivel más fino de la trazabilidad: de aquí sale qué bobina
+                                        produjo cada operador, en qué máquina y a qué lote se entregó.
+                                    </p>
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Bobina</th>
+                                                <th>Registro</th>
+                                                <th>Máquina / operador</th>
+                                                <th>Lote</th>
+                                                <th class="tabla-maestro__num">kg</th>
+                                                <th>Calidad</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (_detalle.BobinasDeLaOrden.Count == 0)
+                                            {
+                                                <tr><td colspan="6" class="tabla-maestro__vacio">
+                                                    Sin bobinas registradas en esta orden.
+                                                </td></tr>
+                                            }
+                                            @foreach (var bobina in _detalle.BobinasDeLaOrden)
+                                            {
+                                                <tr>
+                                                    <td class="tabla-maestro__principal">#@bobina.IdBobi</td>
+                                                    <td>
+                                                        @bobina.IdRegistro
+                                                        <span class="tabla-maestro__secundario">
+                                                            @bobina.Fecha.ToString("dd/MM/yyyy")
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        @bobina.MaquinaCodigo
+                                                        <span class="tabla-maestro__secundario">@bobina.OperadorNombre</span>
+                                                    </td>
+                                                    <td>@(bobina.CodigoLote ?? "Sin lote")</td>
+                                                    <td class="tabla-maestro__num">@Kg(bobina.Peso)</td>
+                                                    <td>
+                                                        @if (!bobina.EsConforme)
+                                                        {
+                                                            <EstadoChip Texto="@(bobina.NoConformidadCodigo ?? "No conforme")"
+                                                                        Tono="TonoChip.Peligro" />
+                                                        }
+                                                        else if (!bobina.Confirmada)
+                                                        {
+                                                            <EstadoChip Texto="Sin confirmar" Tono="TonoChip.Advertencia" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <EstadoChip Texto="Conforme" Tono="TonoChip.Exito" />
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                    break;
+
+                                default:
+                                    <table class="tabla-bloque">
+                                        <thead>
+                                            <tr>
+                                                <th>Código</th>
+                                                <th>Defecto</th>
+                                                <th>Descripción</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (_detalle.NoConformidades.Count == 0)
+                                            {
+                                                <tr><td colspan="4" class="tabla-maestro__vacio">
+                                                    Sin no conformidades registradas en esta orden.
+                                                </td></tr>
+                                            }
+                                            @foreach (var nc in _detalle.NoConformidades)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <a class="enlace" href="@($"/no-conformidades?nc={nc.NoConformidadId}")">
+                                                            @nc.Codigo
+                                                        </a>
+                                                        <span class="tabla-maestro__secundario">
+                                                            @nc.FechaRegistro.ToString("dd/MM/yyyy")
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        @nc.TipoDefecto
+                                                        <span class="tabla-maestro__secundario">@nc.Severidad</span>
+                                                    </td>
+                                                    <td class="tabla-bloque__texto">@nc.Descripcion</td>
+                                                    <td>
+                                                        <EstadoChip Texto="@nc.Estado"
+                                                                    Tono="@(nc.EsFinal ? TonoChip.Neutro : TonoChip.Peligro)" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                    break;
+                            }
+                        </div>
+                    </div>
+                </PanelCard>
+            }
+        </Detalle>
+    </MaestroDetalle>
+</div>
+
+@code {
+    /// <summary>Permite enlazar directo a una orden desde otra pantalla.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    private int? OrdenInicial { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private readonly FiltroOrdenes _filtro = new();
+    private List<OrdenResumen> _ordenes = [];
+    private readonly Paginacion<OrdenResumen> _pag = new();
+    private ResumenOrdenes _resumen = new();
+    private SelectoresProduccion _selectores = new();
+
+    private OrdenDetalle? _detalle;
+    private OrdenEdicion _edicion = new();
+    private bool _modoEdicion;
+
+    /// <summary>Resultados de la última búsqueda de producto (el catálogo no cabe en un combo).</summary>
+    private List<ProductoOpcion> _productos = [];
+    private ProductoOpcion? _productoActual;
+    private string _busquedaProducto = string.Empty;
+
+    private string _motivoReapertura = string.Empty;
+    private string _pestana = "Registros";
+    private bool _puedeGestionar;
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private static readonly List<TabItem> _pestanas =
+    [
+        new("Registros", "Registros"),
+        new("Lotes", "Lotes"),
+        new("Bobinas", "Bobinas"),
+        new("NoConformidades", "No conformidades")
+    ];
+
+    /// <summary>
+    /// Producto y cliente quedan fijos en cuanto la orden tiene registros: es la
+    /// regla que aplica la base, y deshabilitar los campos evita que el usuario
+    /// llene un formulario que va a ser rechazado.
+    /// </summary>
+    private bool _bloqueaProductoYCliente;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is not null)
+        {
+            var estado = await EstadoAutenticacion;
+            _puedeGestionar = estado.User.HasClaim("permiso", "GESTIONAR_ORDENES");
+        }
+
+        try
+        {
+            _selectores = await Catalogos.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+
+        await CargarListaAsync(reiniciarPagina: true);
+
+        if (OrdenInicial is { } id)
+        {
+            await SeleccionarAsync(id);
+        }
+    }
+
+    /// <summary>
+    /// Lee la lista y los indicadores. El resumen se pide aparte porque cuenta
+    /// TODAS las órdenes del periodo, mientras que la lista viene recortada.
+    /// </summary>
+    private async Task CargarListaAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _ordenes = await Ordenes.ListarAsync(_filtro);
+            _resumen = await Ordenes.ResumenAsync(_filtro);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_ordenes);
+            }
+            else
+            {
+                _pag.Actualizar(_ordenes, o => o.OrdenId == _detalle?.OrdenId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        _filtro.Busqueda = e.Value?.ToString();
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarEstadoFiltroAsync(ChangeEventArgs e)
+    {
+        var estado = e.Value?.ToString();
+        _filtro.Estado = string.IsNullOrWhiteSpace(estado) ? null : estado;
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarSoloPendientesAsync(ChangeEventArgs e)
+    {
+        _filtro.SoloConPendientes = e.Value is bool valor && valor;
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    private async Task SeleccionarAsync(int ordenId)
+    {
+        _modoEdicion = false;
+        _error = null;
+        _aviso = null;
+        _motivoReapertura = string.Empty;
+
+        try
+        {
+            _detalle = await Ordenes.ObtenerAsync(ordenId);
+            _pestana = "Registros";
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    private void Cerrar()
+    {
+        _detalle = null;
+        _aviso = null;
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new OrdenEdicion();
+        _productoActual = null;
+        _productos = [];
+        _busquedaProducto = string.Empty;
+        _bloqueaProductoYCliente = false;
+        _modoEdicion = true;
+        _error = null;
+        _aviso = null;
+    }
+
+    private void AbrirEdicion()
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        _edicion = OrdenEdicion.Desde(_detalle);
+        _productoActual = new ProductoOpcion
+        {
+            ProductoId = _detalle.ProductoId,
+            Codigo = _detalle.ProductoCodigo,
+            Nombre = _detalle.ProductoNombre,
+            Activo = true
+        };
+        _productos = [];
+        _busquedaProducto = string.Empty;
+        _bloqueaProductoYCliente = !_detalle.AdmiteCambioDeProducto;
+        _modoEdicion = true;
+        _error = null;
+        _aviso = null;
+    }
+
+    private void CerrarEdicion()
+    {
+        _modoEdicion = false;
+        _error = null;
+    }
+
+    private async Task BuscarProductoAsync(ChangeEventArgs e)
+    {
+        _busquedaProducto = e.Value?.ToString() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_busquedaProducto))
+        {
+            _productos = [];
+            return;
+        }
+
+        try
+        {
+            var selectores = await Catalogos.ObtenerSelectoresAsync(_busquedaProducto.Trim());
+            _productos = selectores.Productos;
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var esAlta = _edicion.OrdenId == 0;
+            var ordenId = await Ordenes.GuardarAsync(_edicion);
+
+            _aviso = esAlta ? "Orden registrada." : "Cambios guardados.";
+            _modoEdicion = false;
+
+            await CargarListaAsync();
+            await SeleccionarAsync(ordenId);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private Task CerrarOrdenAsync() => CambiarEstadoAsync(EstadosOrden.Cerrada, null, "Orden cerrada.");
+
+    private Task ReabrirAsync() =>
+        CambiarEstadoAsync(EstadosOrden.Abierta, _motivoReapertura, "Orden reabierta.");
+
+    private async Task CambiarEstadoAsync(string estado, string? motivo, string aviso)
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await Ordenes.CambiarEstadoAsync(_detalle.OrdenId, estado, motivo);
+            _aviso = aviso;
+            _motivoReapertura = string.Empty;
+
+            await CargarListaAsync();
+            await SeleccionarAsync(_detalle.OrdenId);
+            _aviso = aviso;
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void LeerKgProgramados(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString();
+
+        _edicion.KgProgramados =
+            decimal.TryParse(texto, NumberStyles.Number, CultureInfo.InvariantCulture, out var valor)
+                ? valor
+                : null;
+    }
+
+    private string? ClaseFila(OrdenResumen orden) =>
+        orden.OrdenId == _detalle?.OrdenId ? "tabla-maestro__fila--seleccionada" : null;
+
+    /// <summary>
+    /// Los estados llegan de la base sin acentos ni espacios (convención del
+    /// proyecto para los literales de SQL Server); el texto que ve el usuario se
+    /// redacta aquí, igual que los mensajes de error.
+    /// </summary>
+    private string TextoEstado(string estado) =>
+        _selectores.EstadosOrden.FirstOrDefault(e => e.Clave == estado)?.Nombre ?? estado;
+
+    private static TonoChip TonoEstado(string estado) => estado switch
+    {
+        EstadosOrden.EnProceso => TonoChip.Advertencia,
+        EstadosOrden.Cerrada => TonoChip.Neutro,
+        _ => TonoChip.Exito
+    };
+
+    /// <summary>
+    /// El estado del lote llega de la base pegado y sin acentos ("EnProceso"),
+    /// como todos los literales de los procedimientos. El texto que ve el
+    /// usuario se redacta aquí.
+    /// </summary>
+    private static string TextoEstadoLote(string estado) => estado switch
+    {
+        "EnProceso" => "En proceso",
+        "Liberado" => "Liberado",
+        "Cerrado" => "Cerrado",
+        _ => estado
+    };
+
+    private static TonoChip TonoLote(string estado) => estado switch
+    {
+        "Liberado" => TonoChip.Exito,
+        "Cerrado" => TonoChip.Neutro,
+        _ => TonoChip.Advertencia
+    };
+
+    private static string Kg(decimal? valor) => (valor ?? 0).ToString("N1");
+
+    private static int LeerId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

@@ -1,0 +1,565 @@
+@page "/control-desperdicio"
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Produccion
+@using calidad_app.Services.Produccion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "CONSULTAR_DESPERDICIO")]
+@inject IDesperdicioService Desperdicio
+@inject ICatalogoProduccionService Catalogos
+
+<PageTitle>Control de desperdicio</PageTitle>
+
+@* Compara lo que la planta realmente gastó y produjo contra las metas.
+
+   El desperdicio no se captura aquí: se captura en la inspección en proceso,
+   junto con el setup y la producción, y las metas se administran en catálogos.
+   Esta pantalla solo pone lo uno frente a lo otro.
+
+   El porcentaje se mide sobre el MATERIAL PROCESADO (producido + desperdiciado)
+   y no sobre lo producido: así el indicador siempre va de 0 a 100 y se puede
+   comparar entre máquinas. *@
+
+<div class="desperdicio">
+    <PanelCard Titulo="Control de desperdicio">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+
+        <div class="filtros">
+            <label class="filtros__campo">
+                <span>Desde</span>
+                <input type="date" value="@_filtro.FechaDesde.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaDesde = LeerFecha(e, f.FechaDesde))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Hasta</span>
+                <input type="date" value="@_filtro.FechaHasta.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaHasta = LeerFecha(e, f.FechaHasta))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Línea</span>
+                <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
+                    <option value="0">Todas</option>
+                    @foreach (var linea in _selectores.Lineas)
+                    {
+                        <option value="@linea.LineaId">@linea.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Máquina</span>
+                <select value="@(_filtro.MaquinaId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.MaquinaId = LeerIdNulo(e))">
+                    <option value="0">Todas</option>
+                    @foreach (var maquina in MaquinasDelAmbito)
+                    {
+                        <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Turno</span>
+                <select value="@(_filtro.TurnoId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.TurnoId = LeerIdNulo(e))">
+                    <option value="0">Todos</option>
+                    @foreach (var turno in _selectores.Turnos)
+                    {
+                        <option value="@turno.TurnoId">@turno.Nombre</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        @if (_cargando)
+        {
+            <p class="vacio">Midiendo el periodo…</p>
+        }
+        else if (_resumen.Registros == 0)
+        {
+            <p class="vacio">
+                No hay registros de inspección en ese periodo y ámbito. Amplíe el rango de
+                fechas o quite algún filtro.
+            </p>
+        }
+        else
+        {
+            <div class="metas">
+                @foreach (var meta in _resumen.Metas)
+                {
+                    <div class="meta @ClaseMeta(meta)">
+                        <span class="meta__titulo">@meta.NombreVisible</span>
+                        <span class="meta__valor">@meta.ValorRealTexto</span>
+                        <span class="meta__meta">
+                            @if (meta.TieneMeta)
+                            {
+                                <span>@(meta.EsMaximo ? "Máximo" : "Mínimo"): @meta.ValorMetaTexto</span>
+                            }
+                            else
+                            {
+                                <span>Sin meta definida para este ámbito</span>
+                            }
+                        </span>
+                        @if (meta.Cumple is { } cumple)
+                        {
+                            <EstadoChip Texto="@(cumple ? "Cumple" : "Fuera de meta")"
+                                        Tono="@(cumple ? TonoChip.Exito : TonoChip.Peligro)" />
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="totales">
+                <div class="totales__dato">
+                    <span class="totales__valor">@Kg(_resumen.KgProducidos)</span>
+                    <span class="totales__etiqueta">kg producidos</span>
+                </div>
+                <div class="totales__dato">
+                    <span class="totales__valor">@Kg(_resumen.KgDesperdicio)</span>
+                    <span class="totales__etiqueta">
+                        kg desperdicio (@Kg(_resumen.KgDesperdicioSetup) en setup)
+                    </span>
+                </div>
+                <div class="totales__dato">
+                    <span class="totales__valor">@Kg(_resumen.KgProcesado)</span>
+                    <span class="totales__etiqueta">kg procesados</span>
+                </div>
+                <div class="totales__dato">
+                    <span class="totales__valor">@_resumen.HorasTiempoMuerto.ToString("N1")</span>
+                    <span class="totales__etiqueta">horas de paro</span>
+                </div>
+                <div class="totales__dato">
+                    <span class="totales__valor">@_resumen.Registros</span>
+                    <span class="totales__etiqueta">
+                        corridas en @_resumen.Maquinas máquina(s)
+                    </span>
+                </div>
+            </div>
+
+            <TabStrip Pestanas="_pestanas" PestanaActiva="@_pestana"
+                      PestanaActivaChanged="CambiarPestanaAsync" />
+
+            <div @key="_pestana" class="contenido">
+                @switch (_pestana)
+                {
+                    case "Comparativo":
+                        <div class="subfiltros">
+                            <label class="filtros__campo">
+                                <span>Agrupar</span>
+                                <select value="@_agrupar" @onchange="CambiarAgrupacionAsync">
+                                    @foreach (var opcion in AgrupacionDesperdicio.Opciones)
+                                    {
+                                        <option value="@opcion.Clave">@opcion.Nombre</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>@EtiquetaAgrupacion</th>
+                                    <th class="tabla__num">Corridas</th>
+                                    <th class="tabla__num">kg producidos</th>
+                                    <th class="tabla__num">kg desperdicio</th>
+                                    <th class="tabla__barra">% desperdicio</th>
+                                    <th class="tabla__num">Paro (min)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_grupos.Count == 0)
+                                {
+                                    <tr><td colspan="6" class="tabla__vacio">Sin datos en este corte.</td></tr>
+                                }
+                                @foreach (var grupo in _grupos)
+                                {
+                                    <tr>
+                                        <td class="tabla__principal">@grupo.Etiqueta</td>
+                                        <td class="tabla__num">@grupo.Registros</td>
+                                        <td class="tabla__num">@Kg(grupo.KgProducidos)</td>
+                                        <td class="tabla__num">@Kg(grupo.KgDesperdicio)</td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno"
+                                                     style="width: @Ancho(grupo.PorcentajeDesperdicio, _maxPorcentaje)"></div>
+                                                <span class="barra__texto">
+                                                    @(grupo.PorcentajeDesperdicio?.ToString("0.#") ?? "—") %
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td class="tabla__num">@grupo.TiempoMuertoMin</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <p class="pista">
+                            El porcentaje de cada fila se calcula sobre los totales del grupo, no
+                            promediando los porcentajes de cada corrida: promediarlos le daría el
+                            mismo peso a una corrida de 20 kg que a una de 2000.
+                        </p>
+                        break;
+
+                    case "Detalle":
+                        <div class="subfiltros">
+                            <label class="filtros__check">
+                                <input type="checkbox" checked="@_soloIncumplen"
+                                       @onchange="CambiarSoloIncumplenAsync" />
+                                Solo las corridas fuera de meta
+                            </label>
+                        </div>
+
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>Registro</th>
+                                    <th>Máquina / turno</th>
+                                    <th>Orden / producto</th>
+                                    <th class="tabla__num">kg prod.</th>
+                                    <th class="tabla__num">kg desp.</th>
+                                    <th class="tabla__num">%</th>
+                                    <th>Meta</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_registros.Count == 0)
+                                {
+                                    <tr><td colspan="7" class="tabla__vacio">
+                                        @(_soloIncumplen
+                                            ? "Ninguna corrida del periodo se salió de su meta."
+                                            : "Sin corridas en este periodo.")
+                                    </td></tr>
+                                }
+                                @foreach (var registro in _pag.Elementos)
+                                {
+                                    <tr>
+                                        <td>
+                                            <span class="tabla__principal">@registro.IdRegistro</span>
+                                            <span class="tabla__secundario">
+                                                @registro.Fecha.ToString("dd/MM/yyyy")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @registro.MaquinaCodigo
+                                            <span class="tabla__secundario">
+                                                @registro.TurnoNombre · @registro.Linea
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a class="enlace" href="@($"/ordenes-produccion?orden={registro.OrdenId}")">
+                                                @registro.NumeroOP
+                                            </a>
+                                            <span class="tabla__secundario">@registro.ProductoCodigo</span>
+                                        </td>
+                                        <td class="tabla__num">@Kg(registro.KgProducidos)</td>
+                                        <td class="tabla__num">
+                                            @Kg(registro.KgDesperdicio)
+                                            @if (registro.KgDuro > 0)
+                                            {
+                                                <span class="tabla__secundario">@Kg(registro.KgDuro) duro</span>
+                                            }
+                                        </td>
+                                        <td class="tabla__num">
+                                            @(registro.PorcentajeDesperdicio?.ToString("0.#") ?? "—")
+                                        </td>
+                                        <td>
+                                            @if (registro.CumpleMeta is { } cumple)
+                                            {
+                                                <EstadoChip Texto="@(cumple ? "Cumple" : "Fuera de meta")"
+                                                            Tono="@(cumple ? TonoChip.Exito : TonoChip.Peligro)" />
+                                                <span class="tabla__secundario">
+                                                    Meta @registro.ValorMeta?.ToString("0.##") @registro.MetaUnidad
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tabla__secundario">Sin meta vigente</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+
+                        <p class="pista">
+                            Cada corrida se compara contra SU meta: la que aplicaba a su línea,
+                            máquina y producto en la fecha en que se corrió, no la que esté cargada
+                            hoy.
+                        </p>
+                        break;
+
+                    default:
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>Razón del paro</th>
+                                    <th class="tabla__num">Eventos</th>
+                                    <th class="tabla__num">Setup</th>
+                                    <th class="tabla__num">Producción</th>
+                                    <th class="tabla__num">Minutos</th>
+                                    <th class="tabla__barra">% acumulado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_paros.Count == 0)
+                                {
+                                    <tr><td colspan="6" class="tabla__vacio">
+                                        No se registraron paros en este periodo.
+                                    </td></tr>
+                                }
+                                @foreach (var paro in _paros)
+                                {
+                                    <tr>
+                                        <td class="tabla__principal">
+                                            @paro.RazonNombre
+                                            @if (paro.SinRazonIndicada)
+                                            {
+                                                <span class="tabla__secundario tabla__aviso">
+                                                    El operador registró los minutos sin elegir razón
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="tabla__num">@paro.Eventos</td>
+                                        <td class="tabla__num">@paro.MinutosSetup</td>
+                                        <td class="tabla__num">@paro.MinutosProduccion</td>
+                                        <td class="tabla__num">
+                                            @paro.MinutosTotal
+                                            <span class="tabla__secundario">@paro.HorasTotal.ToString("N1") h</span>
+                                        </td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno barra__relleno--acumulado"
+                                                     style="width: @Ancho(paro.PorcentajeAcumulado, 100)"></div>
+                                                <span class="barra__texto">
+                                                    @(paro.PorcentajeAcumulado?.ToString("0.#") ?? "—") %
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <p class="pista">
+                            Las razones van de mayor a menor con su acumulado, para ver cuántas hay
+                            que atacar para eliminar el 80 % de los minutos perdidos. El paro de
+                            setup y el de producción se separan porque no significan lo mismo: el
+                            primero es preparación previsible; el segundo interrumpe una corrida que
+                            ya estaba andando.
+                        </p>
+                        break;
+                }
+            </div>
+        }
+    </PanelCard>
+</div>
+
+@code {
+    private readonly List<TabItem> _pestanas =
+    [
+        new("Comparativo", "Comparativo"),
+        new("Detalle", "Detalle por corrida"),
+        new("TiempoMuerto", "Tiempo muerto")
+    ];
+
+    private readonly FiltroDesperdicio _filtro = new();
+    private SelectoresProduccion _selectores = new();
+
+    private ResumenDesperdicio _resumen = new();
+    private List<GrupoDesperdicio> _grupos = [];
+    private List<RegistroDesperdicio> _registros = [];
+    private readonly Paginacion<RegistroDesperdicio> _pag = new();
+    private List<ParoPorRazon> _paros = [];
+
+    private string _pestana = "Comparativo";
+    private string _agrupar = AgrupacionDesperdicio.Maquina;
+    private bool _soloIncumplen;
+    private bool _cargando = true;
+    private string? _error;
+
+    /// <summary>
+    /// Escala de las barras del comparativo. Se toma el mayor del corte y no el
+    /// 100 % para que las diferencias se vean: si todas las líneas están entre
+    /// 4 % y 9 %, una escala a 100 las dibujaría a todas igual de cortas.
+    /// </summary>
+    private decimal _maxPorcentaje = 1;
+
+    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
+        _filtro.LineaId is { } linea
+            ? _selectores.MaquinasDe(linea)
+            : _selectores.Maquinas;
+
+    private string EtiquetaAgrupacion =>
+        AgrupacionDesperdicio.Opciones.FirstOrDefault(o => o.Clave == _agrupar).Nombre ?? "Grupo";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _selectores = await Catalogos.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Trae el resumen y el contenido de la pestaña abierta. Las otras dos no se
+    /// piden hasta que se abren: son tres consultas sobre el mismo periodo y
+    /// lanzarlas todas en cada cambio de filtro triplicaría el trabajo de la base
+    /// para mostrar una sola tabla.
+    /// </summary>
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _resumen = await Desperdicio.ResumenAsync(_filtro);
+
+            if (_resumen.Registros == 0)
+            {
+                _grupos = [];
+                _registros = [];
+                _paros = [];
+                _pag.Reiniciar(_registros);
+                return;
+            }
+
+            await CargarPestanaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarPestanaAsync()
+    {
+        switch (_pestana)
+        {
+            case "Comparativo":
+                _grupos = await Desperdicio.AgruparAsync(_filtro, _agrupar);
+                _maxPorcentaje = _grupos
+                    .Select(g => g.PorcentajeDesperdicio ?? 0)
+                    .DefaultIfEmpty(1)
+                    .Max();
+                if (_maxPorcentaje <= 0)
+                {
+                    _maxPorcentaje = 1;
+                }
+                break;
+
+            case "Detalle":
+                _registros = await Desperdicio.ListarAsync(_filtro, _soloIncumplen);
+                _pag.Reiniciar(_registros);
+                break;
+
+            default:
+                _paros = await Desperdicio.TiempoMuertoAsync(_filtro);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Aplica un cambio al filtro y recarga. Recibe la modificación como acción
+    /// para no repetir el mismo bloque de try/catch en cada control de la barra
+    /// de filtros.
+    /// </summary>
+    private Task CambiarAsync(Action<FiltroDesperdicio> cambio)
+    {
+        cambio(_filtro);
+        return CargarAsync();
+    }
+
+    /// <summary>Cambiar de línea invalida la máquina elegida: pertenecía a la anterior.</summary>
+    private Task CambiarLineaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.LineaId = LeerIdNulo(e);
+            f.MaquinaId = null;
+        });
+
+    private async Task CambiarPestanaAsync(string clave)
+    {
+        _pestana = clave;
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            await CargarPestanaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CambiarAgrupacionAsync(ChangeEventArgs e)
+    {
+        _agrupar = e.Value?.ToString() ?? AgrupacionDesperdicio.Maquina;
+        await CambiarPestanaAsync(_pestana);
+    }
+
+    private async Task CambiarSoloIncumplenAsync(ChangeEventArgs e)
+    {
+        _soloIncumplen = e.Value is bool valor && valor;
+        await CambiarPestanaAsync(_pestana);
+    }
+
+    /// <summary>
+    /// Cuánto de la barra se pinta. Se escribe con cultura invariante porque un
+    /// separador decimal con coma rompería el valor CSS.
+    /// </summary>
+    private static string Ancho(decimal? valor, decimal maximo)
+    {
+        if (valor is null || maximo <= 0)
+        {
+            return "0%";
+        }
+
+        var proporcion = Math.Clamp(valor.Value / maximo * 100m, 0m, 100m);
+        return proporcion.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
+
+    private static string? ClaseMeta(MetaComparada meta) => meta.Cumple switch
+    {
+        true => "meta--cumple",
+        false => "meta--incumple",
+        _ => "meta--sin-meta"
+    };
+
+    private static string Kg(decimal? valor) => (valor ?? 0).ToString("N1");
+
+    private static DateOnly LeerFecha(ChangeEventArgs e, DateOnly actual) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : actual;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo medir el periodo. Intente de nuevo o avise a sistemas."
+    };
+}

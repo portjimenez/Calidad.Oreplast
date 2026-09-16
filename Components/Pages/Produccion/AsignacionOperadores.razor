@@ -1,0 +1,696 @@
+@page "/asignacion-operadores"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Produccion
+@using calidad_app.Services.Produccion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "ASIGNAR_OPERADORES")]
+@inject IAsignacionOperadorService Asignaciones
+@inject ICatalogoProduccionService Catalogos
+
+<PageTitle>Asignación de operadores</PageTitle>
+
+@* Programación de operadores por máquina y turno.
+
+   La rejilla muestra el día completo, incluidas las celdas VACÍAS: son los
+   huecos que hay que llenar y son la mitad del valor de la pantalla. El
+   historial, en cambio, solo muestra lo ya programado de un rango.
+
+   La columna que la vuelve una herramienta de control y no una agenda es el
+   desvío: los registros de inspección que capturó alguien distinto del
+   operador programado. *@
+
+<div class="asignacion">
+    <MaestroDetalle>
+        <Maestro>
+            <PanelCard Titulo="Programación de operadores">
+                <TabStrip Pestanas="_pestanas" PestanaActiva="@_pestana"
+                          PestanaActivaChanged="CambiarPestanaAsync" />
+
+                <div class="filtros">
+                    @if (_pestana == "Rejilla")
+                    {
+                        <label class="filtros__campo">
+                            <span>Día</span>
+                            <input type="date" value="@_fecha.ToString("yyyy-MM-dd")"
+                                   @onchange="CambiarFechaAsync" />
+                        </label>
+                    }
+                    else
+                    {
+                        <label class="filtros__campo">
+                            <span>Desde</span>
+                            <input type="date" value="@_fecha.ToString("yyyy-MM-dd")"
+                                   @onchange="CambiarFechaAsync" />
+                        </label>
+                        <label class="filtros__campo">
+                            <span>Hasta</span>
+                            <input type="date" value="@_fechaHasta.ToString("yyyy-MM-dd")"
+                                   @onchange="CambiarFechaHastaAsync" />
+                        </label>
+                    }
+
+                    <label class="filtros__campo">
+                        <span>Línea</span>
+                        <select value="@_lineaId" @onchange="CambiarLineaAsync">
+                            <option value="0">Todas</option>
+                            @foreach (var linea in _selectores.Lineas)
+                            {
+                                <option value="@linea.LineaId">@linea.Etiqueta</option>
+                            }
+                        </select>
+                    </label>
+
+                    <button type="button" class="boton boton--fantasma filtros__nuevo"
+                            @onclick="AbrirCopia">
+                        Copiar programación…
+                    </button>
+                </div>
+
+                @if (_cargando)
+                {
+                    <p class="vacio">Cargando programación…</p>
+                }
+                else if (_pestana == "Rejilla")
+                {
+                    @if (Filas.Any())
+                    {
+                        <div class="rejilla__contenedor">
+                            <table class="rejilla">
+                                <thead>
+                                    <tr>
+                                        <th>Máquina</th>
+                                        @foreach (var turno in _selectores.Turnos)
+                                        {
+                                            <th>@turno.Nombre</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var fila in Filas)
+                                    {
+                                        var primera = fila.First();
+                                        <tr>
+                                            <th scope="row" class="rejilla__maquina">
+                                                <span class="rejilla__codigo">@primera.MaquinaCodigo</span>
+                                                <span class="rejilla__linea">@primera.Linea</span>
+                                            </th>
+                                            @foreach (var turno in _selectores.Turnos)
+                                            {
+                                                var celda = fila.FirstOrDefault(c => c.TurnoId == turno.TurnoId);
+                                                <td class="rejilla__celda">
+                                                    @if (celda is null)
+                                                    {
+                                                        <span class="rejilla__na">—</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <button type="button"
+                                                                class="celda @ClaseCelda(celda)"
+                                                                @onclick="() => AbrirCeldaAsync(celda)">
+                                                            @if (celda.Asignada)
+                                                            {
+                                                                <span class="celda__operador">@celda.OperadorNombre</span>
+                                                                <span class="celda__pie">
+                                                                    @celda.Registros registro(s)
+                                                                    @if (celda.HayDesvio)
+                                                                    {
+                                                                        <span class="celda__desvio">
+                                                                            · @celda.RegistrosDeOtroOperador de otro operador
+                                                                        </span>
+                                                                    }
+                                                                </span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="celda__vacia">Sin asignar</span>
+                                                                @if (celda.Registros > 0)
+                                                                {
+                                                                    <span class="celda__pie celda__desvio">
+                                                                        @celda.Registros registro(s) sin programar
+                                                                    </span>
+                                                                }
+                                                            }
+                                                        </button>
+                                                    }
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p class="leyenda">
+                            @_asignadas de @_totalCeldas celdas programadas.
+                            @if (_conDesvio > 0)
+                            {
+                                <span class="leyenda__desvio">
+                                    @_conDesvio con producción capturada por un operador distinto al programado.
+                                </span>
+                            }
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="vacio">
+                            No hay máquinas activas que coincidan con el filtro. Revise el catálogo
+                            de máquinas y líneas.
+                        </p>
+                    }
+                }
+                else
+                {
+                    <table class="tabla-maestro">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Máquina</th>
+                                <th>Turno</th>
+                                <th>Operador</th>
+                                <th class="tabla-maestro__num">Registros</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_celdas.Count == 0)
+                            {
+                                <tr><td colspan="5" class="tabla-maestro__vacio">
+                                    No hay programación registrada en ese rango.
+                                </td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var celda in _pag.Elementos)
+                                {
+                                    <tr class="@ClaseFila(celda)" @onclick="() => AbrirCeldaAsync(celda)">
+                                        <td>@celda.Fecha.ToString("dd/MM/yyyy")</td>
+                                        <td>
+                                            <span class="tabla-maestro__principal">@celda.MaquinaCodigo</span>
+                                            <span class="tabla-maestro__secundario">@celda.Linea</span>
+                                        </td>
+                                        <td>@celda.TurnoNombre</td>
+                                        <td>
+                                            @celda.OperadorNombre
+                                            @if (celda.OperadorActivo == false)
+                                            {
+                                                <span class="tabla-maestro__secundario">Usuario inactivo</span>
+                                            }
+                                        </td>
+                                        <td class="tabla-maestro__num">
+                                            @celda.Registros
+                                            @if (celda.HayDesvio)
+                                            {
+                                                <span class="tabla-maestro__secundario celda__desvio">
+                                                    @celda.RegistrosDeOtroOperador de otro operador
+                                                </span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+
+                    <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+                }
+            </PanelCard>
+        </Maestro>
+
+        <Detalle>
+            @if (_error is not null)
+            {
+                <p class="ficha__error" role="alert">@_error</p>
+            }
+            @if (_aviso is not null)
+            {
+                <p class="ficha__aviso" role="status">@_aviso</p>
+            }
+
+            @if (_modoCopia)
+            {
+                <PanelCard Titulo="Copiar programación" Cerrable="true" OnCerrar="CerrarCopia">
+                    <div class="ficha">
+                        <p class="ficha__pista">
+                            En la planta la rotación se repite casi igual de un día al siguiente.
+                            Se copian solo las celdas que siguen siendo válidas: máquinas activas y
+                            operadores que conserven el permiso para capturar en planta.
+                        </p>
+
+                        <div class="ficha__fila">
+                            <label class="campo">
+                                <span>Del día</span>
+                                <input type="date" value="@_copiaOrigen.ToString("yyyy-MM-dd")"
+                                       @onchange="e => _copiaOrigen = LeerFecha(e, _copiaOrigen)" />
+                            </label>
+                            <label class="campo">
+                                <span>Al día</span>
+                                <input type="date" value="@_copiaDestino.ToString("yyyy-MM-dd")"
+                                       @onchange="e => _copiaDestino = LeerFecha(e, _copiaDestino)" />
+                            </label>
+                        </div>
+
+                        <label class="filtros__check ficha__check">
+                            <input type="checkbox" checked="@_sobrescribir"
+                                   @onchange="e => _sobrescribir = e.Value is bool v && v" />
+                            Reemplazar lo ya programado en el día destino
+                        </label>
+
+                        <p class="ficha__pista">
+                            Aun reemplazando, nunca se pisa una celda que ya tenga registros de
+                            inspección capturados: esa producción ya ocurrió y su operador quedó
+                            firmado en el registro.
+                        </p>
+
+                        <div class="ficha__acciones">
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@_guardando" @onclick="CopiarAsync">
+                                @(_guardando ? "Copiando…" : "Copiar")
+                            </button>
+                            <button type="button" class="boton boton--fantasma"
+                                    disabled="@_guardando" @onclick="CerrarCopia">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </PanelCard>
+            }
+            else if (_celda is null)
+            {
+                <PanelCard Titulo="Celda de la programación">
+                    <p class="vacio">
+                        Elija una celda de la rejilla para asignar el operador de esa máquina,
+                        turno y día.
+                    </p>
+                </PanelCard>
+            }
+            else
+            {
+                <PanelCard Titulo="@($"{_celda.MaquinaCodigo} · {_celda.TurnoNombre}")"
+                           Cerrable="true" OnCerrar="CerrarCelda">
+                    <div class="ficha">
+                        <p class="ficha__contexto">
+                            @_celda.MaquinaNombre · @_celda.Linea ·
+                            @_celda.Fecha.ToString("dd/MM/yyyy")
+                        </p>
+
+                        @if (_celda.Registros > 0)
+                        {
+                            <p class="ficha__aviso-bloqueo">
+                                Ya hay @_celda.Registros registro(s) de inspección capturados en esta
+                                máquina, turno y fecha. La asignación queda como historia: puede
+                                consultarse, pero ya no se cambia ni se borra.
+                                @if (_celda.HayDesvio)
+                                {
+                                    <span>
+                                        @_celda.RegistrosDeOtroOperador los capturó un operador distinto
+                                        al programado.
+                                    </span>
+                                }
+                            </p>
+                        }
+
+                        <label class="campo">
+                            <span>Operador</span>
+                            <select value="@_operadorId" disabled="@(_celda.Registros > 0)"
+                                    @onchange="e => _operadorId = LeerId(e)">
+                                <option value="0">Elija un operador…</option>
+                                @foreach (var operador in _operadores)
+                                {
+                                    @* Un operador ocupado sigue en la lista, deshabilitado: ocultarlo
+                                       dejaría a quien programa sin saber por qué no lo encuentra. *@
+                                    <option value="@operador.OperadorId"
+                                            disabled="@(operador.Ocupado && operador.OperadorId != _celda.OperadorId)">
+                                        @operador.Etiqueta
+                                        @if (operador.Advertencia is { } nota)
+                                        {
+                                            @($" ({nota})")
+                                        }
+                                    </option>
+                                }
+                            </select>
+                        </label>
+
+                        @if (_operadores.Count == 0)
+                        {
+                            <p class="ficha__pista">
+                                No hay usuarios activos con permiso para registrar inspecciones.
+                                Revise usuarios y roles antes de programar.
+                            </p>
+                        }
+
+                        <div class="ficha__acciones">
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@(_guardando || _operadorId == 0 || _celda.Registros > 0)"
+                                    @onclick="GuardarAsync">
+                                @(_guardando ? "Guardando…" : "Asignar")
+                            </button>
+
+                            @if (_celda.PuedeEliminarse)
+                            {
+                                <button type="button" class="boton boton--enlace-peligro"
+                                        disabled="@_guardando" @onclick="EliminarAsync">
+                                    Quitar asignación
+                                </button>
+                            }
+                        </div>
+
+                        <p class="ficha__pista">
+                            Una máquina no puede tener dos operadores en el mismo turno, y un
+                            operador no puede estar en dos máquinas a la vez. Las dos reglas las
+                            aplica la base.
+                        </p>
+                    </div>
+                </PanelCard>
+            }
+        </Detalle>
+    </MaestroDetalle>
+</div>
+
+@code {
+    private readonly List<TabItem> _pestanas =
+    [
+        new("Rejilla", "Programación del día"),
+        new("Historial", "Historial")
+    ];
+
+    private SelectoresProduccion _selectores = new();
+    private List<CeldaAsignacion> _celdas = [];
+    private readonly Paginacion<CeldaAsignacion> _pag = new();
+
+    private CeldaAsignacion? _celda;
+    private List<OperadorDisponible> _operadores = [];
+    private int _operadorId;
+
+    private string _pestana = "Rejilla";
+    private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly _fechaHasta = DateOnly.FromDateTime(DateTime.Today);
+    private int _lineaId;
+
+    private bool _modoCopia;
+    private DateOnly _copiaOrigen = DateOnly.FromDateTime(DateTime.Today);
+    private DateOnly _copiaDestino = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+    private bool _sobrescribir;
+
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private int _totalCeldas;
+    private int _asignadas;
+    private int _conDesvio;
+
+    /// <summary>
+    /// Una fila por máquina. El procedimiento ya devuelve las celdas ordenadas
+    /// por línea, máquina y turno, así que agrupar conserva ese orden y la
+    /// rejilla sale con las máquinas de cada línea juntas.
+    /// </summary>
+    private IEnumerable<IGrouping<int, CeldaAsignacion>> Filas =>
+        _celdas.GroupBy(c => c.MaquinaId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _selectores = await Catalogos.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            var linea = _lineaId == 0 ? (int?)null : _lineaId;
+
+            _celdas = _pestana == "Rejilla"
+                ? await Asignaciones.ListarRejillaAsync(_fecha, lineaId: linea)
+                : await Asignaciones.ListarHistorialAsync(_fecha, _fechaHasta, lineaId: linea);
+
+            _totalCeldas = _celdas.Count;
+            _asignadas = _celdas.Count(c => c.Asignada);
+            _conDesvio = _celdas.Count(c => c.HayDesvio);
+
+            _pag.Reiniciar(_celdas);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CambiarPestanaAsync(string clave)
+    {
+        _pestana = clave;
+        CerrarCelda();
+
+        // El historial arranca con la semana que termina en el día que se estaba viendo.
+        if (clave == "Historial" && _fechaHasta < _fecha)
+        {
+            _fechaHasta = _fecha;
+            _fecha = _fecha.AddDays(-6);
+        }
+
+        await CargarAsync();
+    }
+
+    private async Task CambiarFechaAsync(ChangeEventArgs e)
+    {
+        _fecha = LeerFecha(e, _fecha);
+        CerrarCelda();
+        await CargarAsync();
+    }
+
+    private async Task CambiarFechaHastaAsync(ChangeEventArgs e)
+    {
+        _fechaHasta = LeerFecha(e, _fechaHasta);
+        await CargarAsync();
+    }
+
+    private async Task CambiarLineaAsync(ChangeEventArgs e)
+    {
+        _lineaId = LeerId(e);
+        CerrarCelda();
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Abre una celda y trae los candidatos de ESE turno y ESA fecha: quién está
+    /// libre cambia con cada celda, así que la lista se pide al abrirla y no se
+    /// carga una vez para toda la rejilla.
+    /// </summary>
+    private async Task AbrirCeldaAsync(CeldaAsignacion celda)
+    {
+        _modoCopia = false;
+        _celda = celda;
+        _operadorId = celda.OperadorId ?? 0;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            _operadores = await Asignaciones.ListarOperadoresAsync(celda.Fecha, celda.TurnoId);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+            _operadores = [];
+        }
+    }
+
+    private void CerrarCelda()
+    {
+        _celda = null;
+        _operadores = [];
+        _operadorId = 0;
+        _aviso = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_celda is null)
+        {
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await Asignaciones.GuardarAsync(new AsignacionEdicion
+            {
+                AsignacionId = _celda.AsignacionId ?? 0,
+                OperadorId = _operadorId,
+                MaquinaId = _celda.MaquinaId,
+                TurnoId = _celda.TurnoId,
+                Fecha = _celda.Fecha
+            });
+
+            _aviso = "Asignación guardada.";
+            await RecargarConservandoCeldaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task EliminarAsync()
+    {
+        if (_celda?.AsignacionId is not { } asignacionId)
+        {
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            await Asignaciones.EliminarAsync(asignacionId);
+            _aviso = "Asignación eliminada.";
+            await RecargarConservandoCeldaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>
+    /// Recarga la rejilla y vuelve a apuntar a la misma celda: después de
+    /// asignar, el usuario sigue mirando esa máquina y ese turno, y perder el
+    /// foco lo obligaría a buscarla otra vez en la rejilla.
+    /// </summary>
+    private async Task RecargarConservandoCeldaAsync()
+    {
+        var maquinaId = _celda?.MaquinaId;
+        var turnoId = _celda?.TurnoId;
+        var fecha = _celda?.Fecha;
+
+        var aviso = _aviso;
+        await CargarAsync();
+
+        _celda = _celdas.FirstOrDefault(c =>
+            c.MaquinaId == maquinaId && c.TurnoId == turnoId && c.Fecha == fecha);
+
+        _operadorId = _celda?.OperadorId ?? 0;
+        _aviso = aviso;
+
+        if (_celda is not null)
+        {
+            _operadores = await Asignaciones.ListarOperadoresAsync(_celda.Fecha, _celda.TurnoId);
+        }
+    }
+
+    private void AbrirCopia()
+    {
+        _modoCopia = true;
+        _celda = null;
+        _copiaOrigen = _fecha;
+        _copiaDestino = _fecha.AddDays(1);
+        _sobrescribir = false;
+        _error = null;
+        _aviso = null;
+    }
+
+    private void CerrarCopia()
+    {
+        _modoCopia = false;
+        _error = null;
+    }
+
+    private async Task CopiarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var linea = _lineaId == 0 ? (int?)null : _lineaId;
+            var resultado = await Asignaciones.CopiarAsync(
+                _copiaOrigen, _copiaDestino, lineaId: linea, sobrescribir: _sobrescribir);
+
+            _aviso = resultado.Omitidas == 0
+                ? $"Se copiaron {resultado.Copiadas} celda(s) al {resultado.FechaDestino:dd/MM/yyyy}."
+                : $"Se copiaron {resultado.Copiadas} de {resultado.EnOrigen} celda(s). "
+                  + $"{resultado.Omitidas} quedaron pendientes de revisar.";
+
+            _modoCopia = false;
+
+            // Se muestra el día destino: es donde acaba de pasar algo.
+            _fecha = resultado.FechaDestino;
+            _pestana = "Rejilla";
+
+            var mensaje = _aviso;
+            await CargarAsync();
+            _aviso = mensaje;
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private string? ClaseCelda(CeldaAsignacion celda)
+    {
+        if (_celda is not null
+            && celda.MaquinaId == _celda.MaquinaId
+            && celda.TurnoId == _celda.TurnoId
+            && celda.Fecha == _celda.Fecha)
+        {
+            return "celda--abierta";
+        }
+
+        if (celda.HayDesvio || (!celda.Asignada && celda.Registros > 0))
+        {
+            return "celda--desvio";
+        }
+
+        return celda.Asignada ? "celda--asignada" : "celda--libre";
+    }
+
+    private string? ClaseFila(CeldaAsignacion celda) =>
+        celda.AsignacionId is not null && celda.AsignacionId == _celda?.AsignacionId
+            ? "tabla-maestro__fila--seleccionada"
+            : null;
+
+    private static DateOnly LeerFecha(ChangeEventArgs e, DateOnly actual) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : actual;
+
+    private static int LeerId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

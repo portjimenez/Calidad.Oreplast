@@ -1,0 +1,412 @@
+/* Estilos de la programación de operadores.
+
+   La rejilla es el centro de la pantalla: cada celda es un botón, porque
+   programar es exactamente hacer clic en el hueco. El color dice el estado de
+   un vistazo (libre, asignada, con desvío), que es lo que se lee desde lejos
+   en una pantalla de planta. */
+
+.asignacion {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+}
+
+.filtros__campo > span {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__campo input,
+.filtros__campo select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__nuevo {
+    margin-left: auto;
+}
+
+/* ---- Rejilla máquina x turno ---- */
+.rejilla__contenedor {
+    overflow-x: auto;
+}
+
+.rejilla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.rejilla thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.rejilla tbody td,
+.rejilla tbody th {
+    padding: 0.3rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.rejilla__maquina {
+    text-align: left;
+    padding-left: 0.6rem !important;
+    background: var(--op-fila-alt);
+    white-space: nowrap;
+}
+
+.rejilla__codigo {
+    display: block;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.rejilla__linea {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 400;
+    color: var(--op-texto-secundario);
+}
+
+.rejilla__celda {
+    min-width: 11rem;
+}
+
+.rejilla__na {
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Celda: el botón de programar ---- */
+.celda {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.73rem;
+    cursor: pointer;
+    background: #fff;
+}
+
+.celda:hover {
+    border-color: var(--op-azul);
+}
+
+.celda__operador {
+    font-weight: 600;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}
+
+.celda__vacia {
+    color: var(--op-texto-secundario);
+    font-style: italic;
+}
+
+.celda__pie {
+    font-size: 0.65rem;
+    color: var(--op-texto-secundario);
+}
+
+.celda__desvio {
+    color: var(--op-advertencia-fg);
+    font-weight: 600;
+}
+
+.celda--asignada {
+    background: var(--op-exito-bg);
+    border-color: #bcdccb;
+}
+
+.celda--libre {
+    background: #fff;
+    border-style: dashed;
+}
+
+/* El desvío no es un error del sistema sino un hecho de planta que alguien
+   tiene que mirar: se señala, no se bloquea. */
+.celda--desvio {
+    background: var(--op-advertencia-bg);
+    border-color: var(--op-advertencia-fg);
+}
+
+.celda--abierta {
+    background: var(--op-seleccion);
+    border-color: var(--op-azul);
+    box-shadow: inset 0 0 0 1px var(--op-azul);
+}
+
+.leyenda {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+    border-top: 1px solid var(--op-borde-suave);
+}
+
+.leyenda__desvio {
+    color: var(--op-advertencia-fg);
+}
+
+/* ---- Tabla del historial ---- */
+.tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.tabla-maestro__fila--seleccionada,
+.tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Ficha lateral ---- */
+.ficha {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ficha__contexto {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.ficha__error,
+.ficha__aviso {
+    margin: 0 0 0.5rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.ficha__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.ficha__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.ficha__aviso-bloqueo {
+    margin: 0;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+    border-radius: 3px;
+}
+
+.ficha__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.ficha__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-top: 0.3rem;
+}
+
+.ficha__fila {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.ficha__fila .campo {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ficha__check {
+    color: var(--op-texto);
+    line-height: 1.35;
+}
+
+.vacio {
+    margin: 0;
+    padding: 1.5rem 0.65rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Campos ---- */
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.campo input,
+.campo select {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.campo input:disabled,
+.campo select:disabled {
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    cursor: not-allowed;
+}
+
+/* ---- Botones ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.boton--fantasma {
+    background: #fff;
+}
+
+.boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+.boton--enlace-peligro {
+    border-color: transparent;
+    background: transparent;
+    color: var(--op-peligro-fg);
+    padding: 0.35rem 0.4rem;
+}
+
+.boton--enlace-peligro:hover:not(:disabled) {
+    text-decoration: underline;
+}

@@ -1,0 +1,281 @@
+/* Estilos del control de desperdicio.
+
+   La pantalla es analítica y ocupa todo el ancho: no hay maestro-detalle
+   porque no se edita nada, se lee. Arriba las cuatro metas, debajo los totales
+   que las explican y luego el corte que se quiera mirar. */
+
+.desperdicio {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+}
+
+.filtros__campo > span {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__campo input,
+.filtros__campo select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+    max-width: 14rem;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.subfiltros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem 0;
+}
+
+/* ---- Tarjetas de meta ----
+   El tono va en la franja lateral y no en el fondo entero: cuatro fondos de
+   color compiten entre sí y ninguno destaca. */
+.metas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.65rem;
+}
+
+.meta {
+    flex: 1 1 11rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--op-borde);
+    border-left: 3px solid var(--op-neutro-fg);
+    border-radius: 3px;
+    background: #fff;
+}
+
+.meta--cumple {
+    border-left-color: var(--op-exito-fg);
+}
+
+.meta--incumple {
+    border-left-color: var(--op-peligro-fg);
+}
+
+.meta--sin-meta {
+    border-left-color: var(--op-borde);
+}
+
+.meta__titulo {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.meta__valor {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    line-height: 1.1;
+}
+
+.meta--incumple .meta__valor {
+    color: var(--op-peligro-fg);
+}
+
+.meta__meta {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+    margin-bottom: 0.15rem;
+}
+
+/* ---- Totales del periodo ---- */
+.totales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--op-info-bg);
+    border-top: 1px solid var(--op-borde-suave);
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.totales__dato {
+    display: flex;
+    flex-direction: column;
+}
+
+.totales__valor {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--op-info-fg);
+    line-height: 1.15;
+}
+
+.totales__etiqueta {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Tablas de las pestañas ---- */
+.contenido {
+    overflow-x: auto;
+}
+
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.74rem;
+}
+
+.tabla thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla tbody td {
+    padding: 0.45rem 0.6rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla__barra {
+    width: 12rem;
+    min-width: 9rem;
+}
+
+.tabla__principal {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tabla__secundario {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 400;
+    color: var(--op-texto-secundario);
+}
+
+/* Un dato que falta en el origen no se esconde: se señala, porque es en sí
+   mismo un hallazgo sobre la calidad de la captura. */
+.tabla__aviso {
+    color: var(--op-advertencia-fg);
+}
+
+.tabla__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+}
+
+/* ---- Barras ---- */
+.barra {
+    position: relative;
+    height: 1.1rem;
+    background: var(--op-neutro-bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.barra__relleno {
+    height: 100%;
+    background: var(--op-azul);
+    opacity: 0.35;
+}
+
+.barra__relleno--acumulado {
+    background: var(--op-advertencia-fg);
+    opacity: 0.3;
+}
+
+.barra__texto {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+/* ---- Textos ---- */
+.pista {
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.vacio {
+    margin: 0;
+    padding: 2rem 0.65rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--op-texto-secundario);
+}
+
+.enlace {
+    color: var(--op-azul);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.enlace:hover {
+    text-decoration: underline;
+}
+
+.ficha__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border-bottom: 1px solid var(--op-peligro-fg);
+}

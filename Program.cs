@@ -4,6 +4,7 @@ using calidad_app.Data.Sp;
 using calidad_app.Services.Calidad;
 using calidad_app.Services.Catalogos;
 using calidad_app.Services.Inspeccion;
+using calidad_app.Services.Produccion;
 using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
@@ -55,6 +56,15 @@ builder.Services.AddScoped<ICertificadoService, CertificadoService>();
 builder.Services.AddScoped<ICatalogoService, CatalogoService>();
 builder.Services.AddScoped<ICatalogoProcesoService, CatalogoProcesoService>();
 builder.Services.AddScoped<IMetaProduccionService, MetaProduccionService>();
+
+// Módulo 5 - Producción. Un servicio por pantalla, porque las tres responden
+// preguntas distintas: las órdenes se administran, la programación de operadores se
+// escribe a diario y el control de desperdicio es solo de lectura (compara lo que ya
+// capturó el módulo 2 contra las metas que administra el módulo 4).
+builder.Services.AddScoped<ICatalogoProduccionService, CatalogoProduccionService>();
+builder.Services.AddScoped<IOrdenService, OrdenService>();
+builder.Services.AddScoped<IAsignacionOperadorService, AsignacionOperadorService>();
+builder.Services.AddScoped<IDesperdicioService, DesperdicioService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

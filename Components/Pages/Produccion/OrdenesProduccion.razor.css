@@ -1,0 +1,411 @@
+/* Estilos de la pantalla de órdenes de producción.
+
+   A diferencia de Catalogos.razor.css, aquí no hace falta ::deep: toda la
+   marca vive en este mismo componente (las pestañas del expediente son un
+   switch, no componentes hijos), así que el atributo de aislamiento ya va en
+   cada elemento. */
+
+.ordenes {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Indicadores del encabezado ---- */
+.resumen {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 0.6rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.resumen__dato {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.resumen__valor {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--op-azul);
+    line-height: 1.1;
+}
+
+.resumen__dato--alerta .resumen__valor {
+    color: var(--op-advertencia-fg);
+}
+
+.resumen__etiqueta {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__busqueda {
+    flex: 1 1 12rem;
+    min-width: 9rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.filtros__select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__nuevo {
+    margin-left: auto;
+}
+
+/* ---- Tabla maestra ---- */
+.tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.tabla-maestro__fila--seleccionada,
+.tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* Producir de más es legítimo (se cubre el desperdicio del cliente), así que
+   pasar de 100 % se marca como dato, no como error. */
+.avance--completo {
+    color: var(--op-exito-fg);
+    font-weight: 600;
+}
+
+/* ---- Expediente de la orden ---- */
+.expediente {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.expediente__encabezado {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.expediente__datos {
+    min-width: 0;
+}
+
+.expediente__producto {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}
+
+.expediente__cliente {
+    margin: 0.1rem 0 0;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.expediente__sin-ficha {
+    margin: 0.35rem 0 0;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+    border-radius: 3px;
+}
+
+.expediente__contenido {
+    overflow-x: auto;
+}
+
+.metricas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.1rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--op-info-bg);
+    border-radius: 3px;
+}
+
+.metricas__dato {
+    display: flex;
+    flex-direction: column;
+}
+
+.metricas__valor {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--op-info-fg);
+    line-height: 1.15;
+}
+
+.metricas__etiqueta {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Tabla de cada pestaña del expediente ---- */
+.tabla-bloque {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.73rem;
+}
+
+.tabla-bloque thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-bloque tbody td {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-bloque tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-bloque__texto {
+    max-width: 22rem;
+    overflow-wrap: anywhere;
+}
+
+.bloque__pista {
+    margin: 0 0 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.enlace {
+    color: var(--op-azul);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.enlace:hover {
+    text-decoration: underline;
+}
+
+.vacio {
+    margin: 0;
+    padding: 1.5rem 0.65rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Ficha de edición ---- */
+.ficha {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ficha__error,
+.ficha__aviso {
+    margin: 0 0 0.5rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.ficha__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.ficha__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.ficha__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.ficha__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.4rem;
+}
+
+/* La reapertura exige motivo, así que el campo va pegado a su botón: separarlos
+   haría parecer que el botón funciona sin llenarlo. */
+.reapertura {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.4rem;
+    flex: 1 1 18rem;
+}
+
+.reapertura .campo {
+    flex: 1 1 auto;
+}
+
+/* ---- Campos ---- */
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+/* Un campo deshabilitado no es un campo apagado: es un dato que ya no se puede
+   cambiar porque hay historia detrás. La pista de al lado explica por qué. */
+.campo input:disabled,
+.campo select:disabled {
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    cursor: not-allowed;
+}
+
+/* ---- Botones ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.boton--fantasma {
+    background: #fff;
+}
+
+.boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
