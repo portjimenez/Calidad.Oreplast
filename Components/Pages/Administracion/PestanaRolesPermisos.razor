@@ -1,0 +1,281 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
+@using calidad_app.Services.Administracion
+@inject IRolService Roles
+
+@* Matriz de permisos: los permisos en las filas, los cinco roles en las columnas.
+
+   Se edita como una hoja: se marcan y desmarcan casillas, los cambios quedan
+   resaltados y se guardan juntos. Al guardar se envía la columna COMPLETA de
+   cada rol que cambió, porque la base evalúa sus reglas sobre el resultado
+   final y no casilla por casilla.
+
+   Hay casillas bloqueadas, y cada una explica por qué:
+     - liberar producto y generar certificados son exclusivos de Ingeniería de
+       Calidad (separación de funciones);
+     - en la columna del propio rol, la administración de usuarios: nadie se la
+       puede quitar a sí mismo. *@
+
+<div class="matriz">
+    @if (_error is not null)
+    {
+        <p class="ficha__error" role="alert">@_error</p>
+    }
+    @if (_aviso is not null)
+    {
+        <p class="ficha__aviso" role="status">@_aviso</p>
+    }
+
+    @if (_cargando)
+    {
+        <p class="matriz__vacio">Cargando la matriz de permisos…</p>
+    }
+    else
+    {
+        <div class="matriz__barra">
+            <span class="matriz__pendientes">
+                @if (Pendientes == 0)
+                {
+                    <text>Sin cambios pendientes.</text>
+                }
+                else
+                {
+                    <text>@Pendientes cambio(s) sin guardar en @RolesModificados.Count rol(es).</text>
+                }
+            </span>
+            <button type="button" class="boton boton--fantasma"
+                    disabled="@(_guardando || Pendientes == 0)" @onclick="Descartar">
+                Descartar
+            </button>
+            <button type="button" class="boton boton--primario"
+                    disabled="@(_guardando || Pendientes == 0)" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : "Guardar cambios")
+            </button>
+        </div>
+
+        <div class="matriz__contenedor">
+            <table class="matriz__tabla">
+                <thead>
+                    <tr>
+                        <th class="matriz__permiso">Permiso</th>
+                        @foreach (var rol in _matriz.Roles)
+                        {
+                            <th class="matriz__rol" title="@rol.Descripcion">
+                                @rol.NombreVisible
+                                <span class="matriz__rol-dato">
+                                    @rol.UsuariosActivos usuario(s) · @ContarMarcadas(rol.RolId) permisos
+                                </span>
+                                @if (rol.EsRolPropio)
+                                {
+                                    <span class="matriz__rol-propio">Su rol</span>
+                                }
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var grupo in _matriz.PorGrupo())
+                    {
+                        <tr class="matriz__grupo">
+                            <td colspan="@(_matriz.Roles.Count + 1)">@TextosAdministracion.Grupo(grupo.Key)</td>
+                        </tr>
+
+                        @foreach (var permiso in grupo)
+                        {
+                            <tr>
+                                <td class="matriz__permiso">
+                                    @(permiso.Descripcion ?? permiso.Clave)
+                                    <span class="matriz__clave">@permiso.Clave</span>
+                                    @if (permiso.EsReservado)
+                                    {
+                                        <span class="matriz__reservado">
+                                            Exclusivo de @TextosAdministracion.Rol(permiso.RolReservadoNombre)
+                                        </span>
+                                    }
+                                </td>
+
+                                @foreach (var rol in _matriz.Roles)
+                                {
+                                    var bloqueo = MotivoBloqueo(rol, permiso);
+                                    <td class="matriz__celda @ClaseCelda(rol, permiso)" title="@bloqueo">
+                                        <input type="checkbox"
+                                               aria-label="@($"{permiso.Clave} para {rol.NombreVisible}")"
+                                               checked="@_marcadas.Contains((rol.RolId, permiso.PermisoId))"
+                                               disabled="@(_guardando || bloqueo is not null)"
+                                               @onchange="e => Alternar(rol.RolId, permiso.PermisoId, e)" />
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <p class="ficha__pista matriz__nota">
+            Las casillas resaltadas son cambios sin guardar. Un cambio de permisos aplica a cada
+            usuario del rol cuando recarga la página; mientras tanto no puede usar un permiso que
+            se le quitó, porque la base lo vuelve a comprobar en cada operación. Las casillas
+            bloqueadas explican el motivo al pasar el cursor.
+        </p>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private MatrizPermisos _matriz = new();
+
+    /// <summary>Copia de trabajo: lo que se ve marcado en pantalla.</summary>
+    private HashSet<(int RolId, int PermisoId)> _marcadas = [];
+
+    private bool _cargando = true;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    /// <summary>Casillas que difieren de lo guardado, en cualquier sentido.</summary>
+    private int Pendientes => _marcadas.Count(c => !_matriz.Asignaciones.Contains(c))
+                            + _matriz.Asignaciones.Count(c => !_marcadas.Contains(c));
+
+    private List<RolMatriz> RolesModificados => _matriz.Roles
+        .Where(r => _matriz.Permisos.Any(p =>
+            _marcadas.Contains((r.RolId, p.PermisoId)) != _matriz.Tiene(r.RolId, p.PermisoId)))
+        .ToList();
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+
+        try
+        {
+            _matriz = await Roles.ObtenerMatrizAsync();
+            _marcadas = [.. _matriz.Asignaciones];
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private void Alternar(int rolId, int permisoId, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _marcadas.Add((rolId, permisoId));
+        }
+        else
+        {
+            _marcadas.Remove((rolId, permisoId));
+        }
+
+        _aviso = null;
+    }
+
+    private void Descartar()
+    {
+        _marcadas = [.. _matriz.Asignaciones];
+        _error = null;
+        _aviso = null;
+    }
+
+    /// <summary>
+    /// Guarda rol por rol, en el orden de la matriz. Si la base rechaza uno se
+    /// detiene y lo dice por su nombre: los roles anteriores YA quedaron
+    /// guardados (cada uno es una operación completa en la base), así que la
+    /// matriz se vuelve a leer para mostrar la verdad y no lo que había en
+    /// pantalla.
+    /// </summary>
+    private async Task GuardarAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        var guardados = new List<string>();
+
+        try
+        {
+            foreach (var rol in RolesModificados)
+            {
+                var claves = _matriz.Permisos
+                    .Where(p => _marcadas.Contains((rol.RolId, p.PermisoId)))
+                    .Select(p => p.Clave);
+
+                try
+                {
+                    var resultado = await Roles.GuardarPermisosAsync(rol.RolId, claves);
+                    guardados.Add($"{rol.NombreVisible} (+{resultado.Agregados} / −{resultado.Quitados})");
+                }
+                catch (Exception ex)
+                {
+                    _error = $"No se guardaron los permisos de {rol.NombreVisible}: {Traducir(ex)}";
+                    break;
+                }
+            }
+
+            if (guardados.Count > 0)
+            {
+                _aviso = $"Permisos actualizados: {string.Join(", ", guardados)}.";
+            }
+
+            // Tras un error se pierden los cambios que no llegaron a guardarse;
+            // es preferible a dejar en pantalla una mezcla de guardado y no
+            // guardado que ya no se distingue.
+            await CargarAsync();
+
+            if (guardados.Count > 0 && OnCambio.HasDelegate)
+            {
+                await OnCambio.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private int ContarMarcadas(int rolId) => _marcadas.Count(c => c.RolId == rolId);
+
+    /// <summary>Null si la casilla se puede editar; si no, el motivo para el tooltip.</summary>
+    private static string? MotivoBloqueo(RolMatriz rol, PermisoMatriz permiso)
+    {
+        if (permiso.EsReservado)
+        {
+            return $"Permiso exclusivo de {TextosAdministracion.Rol(permiso.RolReservadoNombre)}: "
+                 + "solo ese rol libera y certifica producto.";
+        }
+
+        if (rol.EsRolPropio && permiso.Clave == "GESTIONAR_USUARIOS")
+        {
+            return "No puede quitarle a su propio rol la administración de usuarios.";
+        }
+
+        return null;
+    }
+
+    private string? ClaseCelda(RolMatriz rol, PermisoMatriz permiso)
+    {
+        var marcada = _marcadas.Contains((rol.RolId, permiso.PermisoId));
+        var guardada = _matriz.Tiene(rol.RolId, permiso.PermisoId);
+
+        if (marcada == guardada)
+        {
+            return MotivoBloqueo(rol, permiso) is null ? null : "matriz__celda--bloqueada";
+        }
+
+        return marcada ? "matriz__celda--agregada" : "matriz__celda--quitada";
+    }
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

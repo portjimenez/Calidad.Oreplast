@@ -1,6 +1,7 @@
 using calidad_app.Components;
 using calidad_app.Data;
 using calidad_app.Data.Sp;
+using calidad_app.Services.Administracion;
 using calidad_app.Services.Calidad;
 using calidad_app.Services.Catalogos;
 using calidad_app.Services.Inspeccion;
@@ -65,6 +66,14 @@ builder.Services.AddScoped<ICatalogoProduccionService, CatalogoProduccionService
 builder.Services.AddScoped<IOrdenService, OrdenService>();
 builder.Services.AddScoped<IAsignacionOperadorService, AsignacionOperadorService>();
 builder.Services.AddScoped<IDesperdicioService, DesperdicioService>();
+
+// Módulo 6 - Administración. Usuarios y matriz de permisos van en servicios separados
+// porque protegen cosas distintas (quién entra vs. qué puede hacer cada rol); la
+// bitácora es solo de lectura y es la única consulta del proyecto paginada en la base.
+builder.Services.AddScoped<ICatalogoAdministracionService, CatalogoAdministracionService>();
+builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+builder.Services.AddScoped<IRolService, RolService>();
+builder.Services.AddScoped<IBitacoraService, BitacoraService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

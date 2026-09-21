@@ -1,0 +1,514 @@
+/* Estilos de toda la pantalla "Usuarios y roles".
+   Van en un solo archivo, con ::deep, porque las dos pestañas son componentes
+   hijos sin CSS propio, igual que en Catálogos. La tabla, el formulario y los
+   botones son los mismos de esa pantalla para que el Administrador, que pasa
+   de una a otra, no tenga que reaprender nada. */
+
+.admin {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.tarjetas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.6rem;
+}
+
+.admin__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border-bottom: 1px solid var(--op-peligro-fg);
+}
+
+.admin__cargando {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Reparto de la pestaña Usuarios: tabla a la izquierda, ficha a la derecha ---- */
+.admin ::deep .catalogo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.admin ::deep .catalogo__lista {
+    flex: 1 1 32rem;
+    min-width: 0;
+}
+
+.admin ::deep .catalogo__ficha {
+    flex: 0 0 21rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    border-left: 1px solid var(--op-borde);
+    align-self: stretch;
+    min-width: 0;
+}
+
+/* ---- Filtros ---- */
+.admin ::deep .filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.admin ::deep .filtros__busqueda {
+    flex: 1 1 9rem;
+    min-width: 8rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.admin ::deep .filtros__select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+}
+
+.admin ::deep .filtros__nuevo {
+    margin-left: auto;
+}
+
+/* ---- Tabla maestra ---- */
+.admin ::deep .tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.admin ::deep .tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.admin ::deep .tabla-maestro tbody td {
+    padding: 0.5rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.admin ::deep .tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.admin ::deep .tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.admin ::deep .tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.admin ::deep .tabla-maestro__fila--seleccionada,
+.admin ::deep .tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.admin ::deep .tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.admin ::deep .tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.admin ::deep .tabla-maestro__secundario {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Ficha del usuario ---- */
+.admin ::deep .ficha__titulo {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}
+
+.admin ::deep .ficha__estado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+.admin ::deep .ficha__error,
+.admin ::deep .ficha__aviso {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.admin ::deep .ficha__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.admin ::deep .ficha__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.admin ::deep .ficha__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+/* Una pista que pide atención antes de actuar (cambio de rol, turnos pendientes). */
+.admin ::deep .ficha__pista--atencion {
+    padding: 0.4rem 0.5rem;
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+    border-radius: 3px;
+}
+
+.admin ::deep .ficha__pista a,
+.admin ::deep .ficha__enlace {
+    color: var(--op-azul);
+    font-size: 0.7rem;
+}
+
+.admin ::deep .ficha__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-top: 0.3rem;
+}
+
+.admin ::deep .ficha__seccion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--op-borde-suave);
+}
+
+.admin ::deep .ficha__seccion h4 {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.admin ::deep .ficha__seccion-nota {
+    font-weight: 400;
+    color: var(--op-texto-secundario);
+}
+
+/* Permisos efectivos: una lista corta de frases, no de claves técnicas. */
+.admin ::deep .permisos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.admin ::deep .permisos li {
+    font-size: 0.66rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    background: var(--op-info-bg);
+    color: var(--op-info-fg);
+}
+
+.admin ::deep .movimientos {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.68rem;
+}
+
+.admin ::deep .movimientos li {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.4rem;
+}
+
+.admin ::deep .movimientos__fecha {
+    color: var(--op-texto-secundario);
+    white-space: nowrap;
+}
+
+.admin ::deep .movimientos__accion {
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.admin ::deep .movimientos__detalle {
+    grid-column: 1 / -1;
+    color: var(--op-texto-secundario);
+    overflow-wrap: anywhere;
+}
+
+/* ---- Campos ---- */
+.admin ::deep .campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.admin ::deep .campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.admin ::deep .campo input,
+.admin ::deep .campo select {
+    width: 100%;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.admin ::deep .campo input:disabled,
+.admin ::deep .campo select:disabled {
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    cursor: not-allowed;
+}
+
+/* ---- Botones ---- */
+.admin ::deep .boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.admin ::deep .boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.admin ::deep .boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.admin ::deep .boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.admin ::deep .boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+.admin ::deep .boton--enlace-peligro {
+    border-color: transparent;
+    background: transparent;
+    color: var(--op-peligro-fg);
+    padding: 0.35rem 0.4rem;
+}
+
+.admin ::deep .boton--enlace-peligro:hover:not(:disabled) {
+    text-decoration: underline;
+}
+
+/* ---- Matriz de permisos ---- */
+.admin ::deep .matriz {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.65rem 0.65rem;
+}
+
+.admin ::deep .matriz__vacio {
+    margin: 0;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.admin ::deep .matriz__barra {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.admin ::deep .matriz__pendientes {
+    margin-right: auto;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+/* La matriz no cabe en pantallas angostas: se desplaza ella, no la página. */
+.admin ::deep .matriz__contenedor {
+    overflow-x: auto;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+}
+
+.admin ::deep .matriz__tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+}
+
+.admin ::deep .matriz__tabla th,
+.admin ::deep .matriz__tabla td {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.admin ::deep .matriz__tabla thead th {
+    background: var(--op-fondo);
+    color: var(--op-texto);
+    font-weight: 600;
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--op-borde);
+    vertical-align: bottom;
+}
+
+.admin ::deep .matriz__permiso {
+    text-align: left;
+    min-width: 16rem;
+}
+
+.admin ::deep .matriz__rol {
+    text-align: center;
+    min-width: 7.5rem;
+}
+
+.admin ::deep .matriz__rol-dato {
+    display: block;
+    font-weight: 400;
+    font-size: 0.64rem;
+    color: var(--op-texto-secundario);
+}
+
+.admin ::deep .matriz__rol-propio {
+    display: inline-block;
+    margin-top: 0.2rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    background: var(--op-info-bg);
+    color: var(--op-info-fg);
+}
+
+.admin ::deep .matriz__grupo td {
+    background: var(--op-fila-alt);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.admin ::deep .matriz__clave {
+    display: block;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.62rem;
+    color: var(--op-texto-secundario);
+}
+
+.admin ::deep .matriz__reservado {
+    display: inline-block;
+    margin-top: 0.15rem;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+}
+
+.admin ::deep .matriz__celda {
+    text-align: center;
+}
+
+.admin ::deep .matriz__celda input {
+    width: 0.9rem;
+    height: 0.9rem;
+    cursor: pointer;
+}
+
+.admin ::deep .matriz__celda input:disabled {
+    cursor: not-allowed;
+}
+
+.admin ::deep .matriz__celda--bloqueada {
+    background: var(--op-fondo);
+}
+
+/* Cambios sin guardar: verde lo que se agrega, rojo lo que se quita. */
+.admin ::deep .matriz__celda--agregada {
+    background: var(--op-exito-bg);
+    box-shadow: inset 0 0 0 1px var(--op-exito-fg);
+}
+
+.admin ::deep .matriz__celda--quitada {
+    background: var(--op-peligro-bg);
+    box-shadow: inset 0 0 0 1px var(--op-peligro-fg);
+}
+
+.admin ::deep .matriz__nota {
+    max-width: 60rem;
+}
+
+/* En pantallas angostas la ficha pasa debajo de la tabla, a ancho completo. */
+@media (max-width: 60rem) {
+    .admin ::deep .catalogo__ficha {
+        flex: 1 1 100%;
+        border-left: none;
+        border-top: 1px solid var(--op-borde);
+    }
+}

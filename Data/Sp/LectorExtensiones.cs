@@ -19,6 +19,10 @@ public static class LectorExtensiones
         return lector.IsDBNull(i) ? null : lector.GetInt32(i);
     }
 
+    /// <summary>Columnas BIGINT, como la llave de aud.Bitacora.</summary>
+    public static long EnteroLargo(this DbDataReader lector, string columna) =>
+        lector.GetInt64(lector.GetOrdinal(columna));
+
     public static string Texto(this DbDataReader lector, string columna)
     {
         var i = lector.GetOrdinal(columna);

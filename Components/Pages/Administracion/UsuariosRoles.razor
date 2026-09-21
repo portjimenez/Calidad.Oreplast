@@ -1,0 +1,146 @@
+@page "/usuarios-roles"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
+@using calidad_app.Services.Administracion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "GESTIONAR_USUARIOS")]
+@inject IUsuarioService Usuarios
+@inject ICatalogoAdministracionService Catalogo
+@inject NavigationManager Navegacion
+
+<PageTitle>Usuarios y roles · @NombreActual</PageTitle>
+
+@* Quién puede entrar al sistema y qué puede hacer cada rol. Dos pestañas porque
+   son dos preguntas distintas: la de usuarios se contesta persona por persona;
+   la de roles, una sola vez para todos los que comparten ese rol.
+
+   La página se ocupa de lo común (los indicadores, los combos y las pestañas);
+   cada pestaña es un componente con su propia carga, como en Catálogos. *@
+
+<div class="admin">
+    <div class="tarjetas">
+        <TarjetaIndicador Titulo="Usuarios activos"
+                          Valor="@_resumen.UsuariosActivos"
+                          Detalle="@($"{_resumen.UsuariosInactivos} dados de baja")"
+                          Href="/usuarios-roles?pestana=Usuarios" />
+
+        <TarjetaIndicador Titulo="Entraron hoy"
+                          Valor="@_resumen.UsuariosConAccesoHoy"
+                          Detalle="Usuarios con inicio de sesión hoy"
+                          Href="/bitacora" />
+
+        <TarjetaIndicador Titulo="Accesos denegados"
+                          Valor="@_resumen.AccesosDenegados7Dias"
+                          Detalle="Últimos 7 días: cuentas sin registrar o inactivas"
+                          Tono="@(_resumen.AccesosDenegados7Dias > 0 ? TonoChip.Advertencia : TonoChip.Neutro)"
+                          Href="/bitacora?vista=denegados" />
+
+        <TarjetaIndicador Titulo="Roles"
+                          Valor="@_resumen.Roles"
+                          Detalle="@($"{_resumen.Permisos} permisos en el catálogo")"
+                          Href="/usuarios-roles?pestana=Roles" />
+    </div>
+
+    <PanelCard Titulo="@($"Usuarios y roles · {NombreActual}")">
+        @if (_error is not null)
+        {
+            <p class="admin__error" role="alert">@_error</p>
+        }
+
+        <TabStrip Pestanas="_pestanas" PestanaActiva="@_activa"
+                  PestanaActivaChanged="CambiarPestana" />
+
+        @if (_cargando)
+        {
+            <p class="admin__cargando">Cargando…</p>
+        }
+        else
+        {
+            @* La clave fuerza a recrear el componente al cambiar de pestaña: cada
+               uno carga su propia información al iniciarse. *@
+            <div @key="_activa">
+                @if (_activa == "Roles")
+                {
+                    <PestanaRolesPermisos OnCambio="RefrescarAsync" />
+                }
+                else
+                {
+                    <PestanaUsuarios Selectores="_selectores" OnCambio="RefrescarAsync" />
+                }
+            </div>
+        }
+    </PanelCard>
+</div>
+
+@code {
+    /// <summary>Pestaña a abrir al entrar, para poder enlazar directo a una.</summary>
+    [SupplyParameterFromQuery(Name = "pestana")]
+    private string? PestanaSolicitada { get; set; }
+
+    private ResumenAdministracion _resumen = new();
+    private SelectoresAdministracion _selectores = new();
+    private List<TabItem> _pestanas = [];
+
+    private string _activa = "Usuarios";
+    private bool _cargando = true;
+    private string? _error;
+
+    private string NombreActual => _activa == "Roles" ? "Roles y permisos" : "Usuarios";
+
+    protected override Task OnInitializedAsync() => RefrescarAsync();
+
+    /// <summary>
+    /// Las tarjetas de arriba enlazan a esta misma página con otra ?pestana=.
+    /// Blazor reutiliza el componente en ese caso (no vuelve a inicializarlo), así
+    /// que la pestaña se toma aquí, que sí corre en cada cambio de dirección.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (PestanaSolicitada is "Usuarios" or "Roles")
+        {
+            _activa = PestanaSolicitada;
+        }
+    }
+
+    /// <summary>
+    /// Vuelve a leer los indicadores y los combos. Se llama al entrar y cada vez
+    /// que una pestaña guarda algo: dar de baja a alguien cambia los conteos de
+    /// arriba y el conteo de la pestaña.
+    /// </summary>
+    private async Task RefrescarAsync()
+    {
+        _error = null;
+
+        try
+        {
+            _resumen = await Usuarios.ResumenAsync();
+            _selectores = await Catalogo.ObtenerSelectoresAsync();
+
+            _pestanas =
+            [
+                new TabItem("Usuarios", $"Usuarios ({_resumen.UsuariosActivos})"),
+                new TabItem("Roles", $"Roles y permisos ({_resumen.Roles})")
+            ];
+        }
+        catch (Exception ex)
+        {
+            _error = ex is ReglaNegocioException regla
+                ? regla.Message
+                : "No se pudo cargar la administración de usuarios. Intente de nuevo o avise a sistemas.";
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// Cambia de pestaña y lo refleja en la dirección, reemplazando la entrada del
+    /// historial, igual que en Catálogos.
+    /// </summary>
+    private void CambiarPestana(string clave)
+    {
+        _activa = clave;
+        Navegacion.NavigateTo($"/usuarios-roles?pestana={clave}", replace: true);
+    }
+}

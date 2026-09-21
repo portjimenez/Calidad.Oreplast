@@ -1,0 +1,540 @@
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
+@using calidad_app.Services.Administracion
+@using calidad_app.Components.Shared
+@inject IUsuarioService Usuarios
+@inject IUsuarioActual UsuarioActual
+
+@* Usuarios del sistema. La cuenta de dominio es la llave: es lo que llega de
+   Windows Authentication y lo que se busca en seg.Usuario al entrar, así que un
+   error de escritura aquí deja a la persona en "Acceso No Autorizado".
+
+   Las reglas que protegen al sistema viven en la base; esta pantalla solo las
+   anticipa (deshabilita el botón y explica por qué) para no llevar al
+   Administrador a un error que ya se sabe que va a ocurrir. *@
+
+<div class="catalogo">
+    <div class="catalogo__lista">
+        <div class="filtros">
+            <input type="search" class="filtros__busqueda"
+                   placeholder="Código, nombre o cuenta…"
+                   value="@_filtro.Busqueda" @onchange="BuscarAsync" />
+            <select class="filtros__select" value="@(_filtro.RolId ?? 0)" @onchange="CambiarRolFiltroAsync">
+                <option value="0">Todos los roles</option>
+                @foreach (var rol in Selectores.Roles)
+                {
+                    <option value="@rol.RolId">@rol.NombreVisible</option>
+                }
+            </select>
+            <select class="filtros__select" value="@(_filtro.AreaId ?? 0)" @onchange="CambiarAreaFiltroAsync">
+                <option value="0">Todas las áreas</option>
+                @foreach (var area in Selectores.Areas)
+                {
+                    <option value="@area.AreaId">@TextosAdministracion.Area(area.Nombre)</option>
+                }
+            </select>
+            <select class="filtros__select" value="@EstadoFiltro" @onchange="CambiarEstadoFiltroAsync">
+                <option value="activos">Activos</option>
+                <option value="inactivos">Dados de baja</option>
+                <option value="todos">Todos</option>
+            </select>
+            <button type="button" class="boton boton--primario filtros__nuevo" @onclick="AbrirAlta">
+                Nuevo usuario
+            </button>
+        </div>
+
+        <table class="tabla-maestro">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Rol</th>
+                    <th>Área / Línea</th>
+                    <th>Último acceso</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_cargando)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Cargando usuarios…</td></tr>
+                }
+                else if (_usuarios.Count == 0)
+                {
+                    <tr><td colspan="6" class="tabla-maestro__vacio">Sin usuarios que coincidan.</td></tr>
+                }
+                else
+                {
+                    @foreach (var usuario in _pag.Elementos)
+                    {
+                        <tr class="@ClaseFila(usuario)" @onclick="() => SeleccionarAsync(usuario)">
+                            <td><span class="tabla-maestro__principal">@usuario.Codigo</span></td>
+                            <td>
+                                @usuario.NombreCompleto
+                                <span class="tabla-maestro__secundario">@usuario.UsuarioDominio</span>
+                            </td>
+                            <td>@usuario.RolVisible</td>
+                            <td>@usuario.Ubicacion</td>
+                            <td>@(usuario.UltimoAcceso?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
+                            <td>
+                                <EstadoChip Texto="@(usuario.Activo ? "Activo" : "Inactivo")"
+                                            Tono="@(usuario.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+    </div>
+
+    <div class="catalogo__ficha">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+        @if (_aviso is not null)
+        {
+            <p class="ficha__aviso" role="status">@_aviso</p>
+        }
+
+        <h3 class="ficha__titulo">
+            @(EsAlta ? "Nuevo usuario" : $"{_edicion.Codigo} · {_edicion.NombreCompleto}")
+        </h3>
+
+        @if (_detalle is not null)
+        {
+            <div class="ficha__estado">
+                <EstadoChip Texto="@(_detalle.Activo ? "Activo" : "Inactivo")"
+                            Tono="@(_detalle.Activo ? TonoChip.Exito : TonoChip.Neutro)" />
+                <span>Alta @_detalle.FechaCreacion.ToString("dd/MM/yyyy")</span>
+                <span>·</span>
+                <span>
+                    @(_detalle.UltimoAcceso is { } acceso
+                        ? $"Último acceso {acceso:dd/MM/yyyy HH:mm}"
+                        : "Nunca ha entrado")
+                </span>
+            </div>
+        }
+
+        <label class="campo">
+            <span>Código de colaborador</span>
+            <input type="text" maxlength="30"
+                   value="@_edicion.Codigo"
+                   @onchange="e => _edicion.Codigo = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Nombre completo</span>
+            <input type="text" maxlength="150"
+                   value="@_edicion.NombreCompleto"
+                   @onchange="e => _edicion.NombreCompleto = e.Value?.ToString() ?? string.Empty" />
+        </label>
+
+        <label class="campo">
+            <span>Cuenta de dominio</span>
+            <input type="text" maxlength="100" placeholder="OREPLAST\usuario"
+                   value="@_edicion.UsuarioDominio"
+                   @onchange="e => _edicion.UsuarioDominio = e.Value?.ToString() ?? string.Empty" />
+        </label>
+        <p class="ficha__pista">
+            Es la cuenta con la que la persona inicia sesión en Windows. Si escribe solo el
+            usuario (por ejemplo <em>mlopez</em>) se guarda como <em>OREPLAST\mlopez</em>.
+        </p>
+
+        <label class="campo">
+            <span>Rol</span>
+            <select value="@_edicion.RolId" disabled="@EsUsuarioPropio"
+                    @onchange="e => _edicion.RolId = LeerId(e)">
+                <option value="0">Elija un rol…</option>
+                @foreach (var rol in Selectores.Roles)
+                {
+                    <option value="@rol.RolId">@rol.NombreVisible</option>
+                }
+            </select>
+        </label>
+
+        @if (EsUsuarioPropio)
+        {
+            <p class="ficha__pista">
+                No puede cambiar su propio rol: así nadie se quita por error el permiso de
+                administrar usuarios. Otro administrador tendría que hacerlo.
+            </p>
+        }
+        else if (CambiaDeRol)
+        {
+            <p class="ficha__pista ficha__pista--atencion">
+                El nuevo rol aplica cuando la persona recargue la página. Mientras tanto no
+                puede usar ningún permiso que pierda: la base lo vuelve a comprobar en cada
+                operación.
+            </p>
+        }
+
+        <label class="campo">
+            <span>Área</span>
+            <select value="@(_edicion.AreaId ?? 0)" @onchange="e => _edicion.AreaId = LeerIdNulo(e)">
+                <option value="0">Sin área (transversal)</option>
+                @foreach (var area in Selectores.Areas.Where(a => a.Activo || a.AreaId == _edicion.AreaId))
+                {
+                    <option value="@area.AreaId">
+                        @TextosAdministracion.Area(area.Nombre)@(area.Activo ? "" : " (retirada)")
+                    </option>
+                }
+            </select>
+        </label>
+
+        <div class="ficha__acciones">
+            <button type="button" class="boton boton--primario"
+                    disabled="@_guardando" @onclick="GuardarAsync">
+                @(_guardando ? "Guardando…" : EsAlta ? "Dar de alta" : "Guardar")
+            </button>
+
+            @if (!EsAlta && _detalle is not null)
+            {
+                <button type="button" class="boton boton--fantasma"
+                        disabled="@_guardando" @onclick="AbrirAlta">
+                    Cancelar
+                </button>
+
+                <button type="button"
+                        class="boton @(_detalle.Activo ? "boton--enlace-peligro" : "boton--fantasma")"
+                        disabled="@(_guardando || (_detalle.Activo && !SePuedeDesactivar))"
+                        @onclick="CambiarEstadoAsync">
+                    @(_detalle.Activo ? "Dar de baja" : "Reactivar")
+                </button>
+            }
+        </div>
+
+        @if (_detalle is { Activo: true } && EsUsuarioPropio)
+        {
+            <p class="ficha__pista">No puede darse de baja a sí mismo.</p>
+        }
+        else if (_detalle is { Activo: true, TieneAsignacionesPendientes: true })
+        {
+            <p class="ficha__pista ficha__pista--atencion">
+                Tiene @_detalle.AsignacionesPendientes turno(s) de operador programados que aún
+                no se trabajan. Para darlo de baja, el Jefe de Producción debe reasignarlos
+                primero en <a href="/asignacion-operadores">Asignación de operadores</a>.
+            </p>
+        }
+        else if (_detalle is { Activo: false })
+        {
+            <p class="ficha__pista">
+                Un usuario dado de baja no puede entrar ni ejecutar ninguna acción, pero su
+                historia se conserva: los registros que firmó siguen a su nombre.
+            </p>
+        }
+
+        @if (_cargandoDetalle)
+        {
+            <p class="ficha__pista">Cargando permisos y actividad…</p>
+        }
+        else if (_detalle is not null)
+        {
+            <div class="ficha__seccion">
+                <h4>
+                    Permisos de su rol (@_detalle.Permisos.Count)
+                    @if (!_detalle.Activo)
+                    {
+                        <span class="ficha__seccion-nota">— no los ejerce mientras esté inactivo</span>
+                    }
+                </h4>
+                @if (_detalle.Permisos.Count == 0)
+                {
+                    <p class="ficha__pista">El rol no tiene permisos asignados.</p>
+                }
+                else
+                {
+                    <ul class="permisos">
+                        @foreach (var permiso in _detalle.Permisos)
+                        {
+                            <li title="@permiso.Clave">@(permiso.Descripcion ?? permiso.Clave)</li>
+                        }
+                    </ul>
+                }
+            </div>
+
+            <div class="ficha__seccion">
+                <h4>Actividad reciente</h4>
+                @if (_detalle.Movimientos.Count == 0)
+                {
+                    <p class="ficha__pista">Sin movimientos en la bitácora.</p>
+                }
+                else
+                {
+                    <ul class="movimientos">
+                        @foreach (var mov in _detalle.Movimientos)
+                        {
+                            <li>
+                                <span class="movimientos__fecha">@mov.FechaHora.ToString("dd/MM HH:mm")</span>
+                                <span class="movimientos__accion">@mov.AccionVisible</span>
+                                <span class="movimientos__detalle">@mov.Detalle</span>
+                            </li>
+                        }
+                    </ul>
+                    <a class="ficha__enlace" href="@($"/bitacora?usuario={_detalle.UsuarioId}")">
+                        Ver toda su actividad en la bitácora
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SelectoresAdministracion Selectores { get; set; } = new();
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private readonly FiltroUsuarios _filtro = new() { Activo = true };
+    private List<UsuarioResumen> _usuarios = [];
+    private readonly Paginacion<UsuarioResumen> _pag = new();
+
+    private UsuarioEdicion _edicion = new();
+    private UsuarioDetalle? _detalle;
+    private int _usuarioPropioId;
+
+    private bool _cargando = true;
+    private bool _cargandoDetalle;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private bool EsAlta => _edicion.UsuarioId == 0;
+    private bool EsUsuarioPropio => !EsAlta && _edicion.UsuarioId == _usuarioPropioId;
+    private bool CambiaDeRol => _detalle is not null && _edicion.RolId != _detalle.RolId;
+    private bool SePuedeDesactivar =>
+        _detalle is not null && !EsUsuarioPropio && !_detalle.TieneAsignacionesPendientes;
+
+    private string EstadoFiltro => _filtro.Activo switch
+    {
+        true => "activos",
+        false => "inactivos",
+        null => "todos"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _usuarioPropioId = await UsuarioActual.ObtenerIdAsync();
+        AbrirAlta();
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    /// <summary>
+    /// Lee la lista. Al cambiar un filtro se vuelve a la primera página; al
+    /// recargar tras guardar se conserva la posición del usuario abierto.
+    /// </summary>
+    private async Task CargarAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+
+        try
+        {
+            _usuarios = await Usuarios.ListarAsync(_filtro);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_usuarios);
+            }
+            else
+            {
+                _pag.Actualizar(_usuarios, u => !EsAlta && u.UsuarioId == _edicion.UsuarioId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString()?.Trim();
+        _filtro.Busqueda = string.IsNullOrEmpty(texto) ? null : texto;
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarRolFiltroAsync(ChangeEventArgs e)
+    {
+        _filtro.RolId = LeerIdNulo(e);
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarAreaFiltroAsync(ChangeEventArgs e)
+    {
+        _filtro.AreaId = LeerIdNulo(e);
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarEstadoFiltroAsync(ChangeEventArgs e)
+    {
+        _filtro.Activo = e.Value?.ToString() switch
+        {
+            "activos" => true,
+            "inactivos" => false,
+            _ => null
+        };
+        await CargarAsync(reiniciarPagina: true);
+    }
+
+    /// <summary>
+    /// Abre un usuario: el formulario se llena con la fila (inmediato) y los
+    /// permisos y la actividad se piden aparte, porque la lista no los trae.
+    /// </summary>
+    private async Task SeleccionarAsync(UsuarioResumen fila, bool conservarMensajes = false)
+    {
+        _edicion = UsuarioEdicion.Desde(fila);
+
+        if (!conservarMensajes)
+        {
+            _error = null;
+            _aviso = null;
+        }
+
+        _cargandoDetalle = true;
+
+        try
+        {
+            _detalle = await Usuarios.ObtenerAsync(fila.UsuarioId);
+
+            if (_detalle is not null)
+            {
+                _detalle.LineaReciente = fila.LineaReciente;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    private void AbrirAlta()
+    {
+        _edicion = new UsuarioEdicion
+        {
+            RolId = _filtro.RolId ?? 0,
+            AreaId = _filtro.AreaId
+        };
+        _detalle = null;
+        _error = null;
+        _aviso = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        _error = null;
+        _aviso = null;
+
+        // La base respondería "el rol indicado no existe", que es cierto pero no
+        // dice lo que pasó: simplemente no se eligió uno.
+        if (_edicion.RolId == 0)
+        {
+            _error = "Elija el rol del usuario.";
+            return;
+        }
+
+        _guardando = true;
+
+        try
+        {
+            var esAlta = EsAlta;
+            var id = await Usuarios.GuardarAsync(_edicion);
+            _edicion.UsuarioId = id;
+
+            await RecargarAsync(id);
+            _aviso = esAlta
+                ? $"Usuario dado de alta como {_detalle?.UsuarioDominio}."
+                : "Cambios guardados.";
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CambiarEstadoAsync()
+    {
+        if (_detalle is null)
+        {
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var activar = !_detalle.Activo;
+            await Usuarios.CambiarEstadoAsync(_detalle.UsuarioId, activar);
+
+            await RecargarAsync(_detalle.UsuarioId);
+            _aviso = activar
+                ? "Usuario reactivado: puede volver a entrar."
+                : "Usuario dado de baja: ya no puede entrar ni ejecutar acciones.";
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>
+    /// Recarga la lista y vuelve a abrir el usuario. Si con los filtros actuales
+    /// ya no aparece (por ejemplo, se dio de baja y se están viendo solo los
+    /// activos), se abre igual desde la base para que el Administrador vea el
+    /// resultado de lo que acaba de hacer.
+    /// </summary>
+    private async Task RecargarAsync(int usuarioId)
+    {
+        await CargarAsync();
+
+        var fila = _usuarios.FirstOrDefault(u => u.UsuarioId == usuarioId);
+
+        if (fila is not null)
+        {
+            await SeleccionarAsync(fila, conservarMensajes: true);
+        }
+        else if (await Usuarios.ObtenerAsync(usuarioId) is { } detalle)
+        {
+            _detalle = detalle;
+            _edicion = UsuarioEdicion.Desde(detalle);
+        }
+
+        if (OnCambio.HasDelegate)
+        {
+            await OnCambio.InvokeAsync();
+        }
+    }
+
+    private string? ClaseFila(UsuarioResumen u) =>
+        !EsAlta && u.UsuarioId == _edicion.UsuarioId ? "tabla-maestro__fila--seleccionada" : null;
+
+    private static int LeerId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        LeerId(e) is var id && id != 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

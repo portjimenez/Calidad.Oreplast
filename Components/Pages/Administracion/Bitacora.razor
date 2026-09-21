@@ -1,0 +1,374 @@
+@page "/bitacora"
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
+@using calidad_app.Services.Administracion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "VER_BITACORA")]
+@inject IBitacoraService Auditoria
+@inject ICatalogoAdministracionService Catalogo
+
+<PageTitle>Bitácora</PageTitle>
+
+@* Bitácora de auditoría: quién hizo qué, cuándo y desde dónde.
+
+   Es de solo lectura; cada módulo escribe en ella desde sus procedimientos.
+   Se pagina en la base y no en la pantalla, porque se escribe una fila en cada
+   carga de página y la tabla crece con el uso diario.
+
+   Por omisión oculta los inicios de sesión exitosos: son la mitad de las filas
+   y tapan lo que el auditor viene a buscar. Los accesos denegados se ven
+   siempre. *@
+
+<div class="bitacora">
+    <PanelCard Titulo="Bitácora de auditoría">
+        <div class="filtros">
+            <label class="filtros__campo">
+                <span>Desde</span>
+                <input type="date" value="@_filtro.FechaDesde.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarFechasAsync(desde: LeerFecha(e, _filtro.FechaDesde))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Hasta</span>
+                <input type="date" value="@_filtro.FechaHasta.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarFechasAsync(hasta: LeerFecha(e, _filtro.FechaHasta))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Usuario</span>
+                <select value="@(_filtro.UsuarioId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.UsuarioId = LeerIdNulo(e))">
+                    <option value="0">Todos</option>
+                    @foreach (var usuario in _selectores.Usuarios)
+                    {
+                        <option value="@usuario.UsuarioId">@usuario.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Acción</span>
+                <select value="@(_filtro.Accion ?? string.Empty)"
+                        @onchange="e => CambiarAsync(f => f.Accion = LeerTexto(e))">
+                    <option value="">Todas</option>
+                    @foreach (var accion in _selectores.Acciones)
+                    {
+                        <option value="@accion">@TextosAdministracion.Accion(accion)</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Entidad</span>
+                <select value="@(_filtro.Entidad ?? string.Empty)"
+                        @onchange="e => CambiarAsync(f => f.Entidad = LeerTexto(e))">
+                    <option value="">Todas</option>
+                    @foreach (var entidad in _selectores.Entidades)
+                    {
+                        <option value="@entidad">@entidad</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo filtros__campo--ancho">
+                <span>Buscar</span>
+                <input type="search" placeholder="Detalle, cuenta, IP…"
+                       value="@_filtro.Busqueda"
+                       @onchange="e => CambiarAsync(f => f.Busqueda = LeerTexto(e))" />
+            </label>
+
+            <label class="filtros__check">
+                <input type="checkbox" checked="@_filtro.OcultarAccesosExitosos"
+                       @onchange="e => CambiarAsync(f => f.OcultarAccesosExitosos = e.Value is true)" />
+                Ocultar inicios de sesión
+            </label>
+
+            <div class="filtros__atajos">
+                <button type="button" class="boton" @onclick="VerDenegadosAsync">Accesos denegados</button>
+                <button type="button" class="boton boton--fantasma" @onclick="LimpiarAsync">Limpiar filtros</button>
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+
+        <div class="totales">
+            <div class="totales__dato">
+                <span class="totales__valor">@_resumen.TotalEventos.ToString("N0")</span>
+                <span class="totales__etiqueta">eventos en el periodo</span>
+            </div>
+            <div class="totales__dato">
+                <span class="totales__valor">@_resumen.Operaciones.ToString("N0")</span>
+                <span class="totales__etiqueta">operaciones (sin contar accesos)</span>
+            </div>
+            <div class="totales__dato">
+                <span class="totales__valor">@_resumen.AccesosExitosos.ToString("N0")</span>
+                <span class="totales__etiqueta">inicios de sesión</span>
+            </div>
+            <div class="totales__dato @(_resumen.AccesosDenegados > 0 ? "totales__dato--alerta" : null)">
+                <span class="totales__valor">@_resumen.AccesosDenegados.ToString("N0")</span>
+                <span class="totales__etiqueta">accesos denegados</span>
+            </div>
+            <div class="totales__dato">
+                <span class="totales__valor">@_resumen.UsuariosDistintos.ToString("N0")</span>
+                <span class="totales__etiqueta">usuarios con actividad</span>
+            </div>
+        </div>
+
+        @if (_resumen.PorAccion.Count > 0)
+        {
+            @* Cuántos eventos hay de cada acción; al pulsar una se filtra por ella. *@
+            <div class="acciones">
+                @foreach (var conteo in _resumen.PorAccion)
+                {
+                    <button type="button"
+                            class="acciones__chip @(conteo.Accion == _filtro.Accion ? "acciones__chip--activa" : null)"
+                            @onclick="() => FiltrarAccionAsync(conteo.Accion)">
+                        @conteo.AccionVisible <strong>@conteo.Total.ToString("N0")</strong>
+                    </button>
+                }
+            </div>
+        }
+
+        <div class="contenido">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>Fecha y hora</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>Entidad</th>
+                        <th>Detalle</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_cargando)
+                    {
+                        <tr><td colspan="6" class="tabla__vacio">Consultando la bitácora…</td></tr>
+                    }
+                    else if (_pagina.Eventos.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="tabla__vacio">
+                                Sin eventos con esos filtros. Amplíe el rango de fechas o quite algún filtro.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var evento in _pagina.Eventos)
+                        {
+                            <tr class="@(evento.EsAccesoDenegado ? "tabla__fila--denegada" : null)">
+                                <td class="tabla__fecha">@evento.FechaHora.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                <td>
+                                    @if (evento.UsuarioId is null)
+                                    {
+                                        <span class="tabla__sin-usuario">Sin usuario</span>
+                                    }
+                                    else
+                                    {
+                                        @evento.UsuarioNombre
+                                        <span class="tabla__secundario">@evento.UsuarioDominio</span>
+                                    }
+                                </td>
+                                <td><EstadoChip Texto="@evento.AccionVisible" Tono="@TonoDe(evento)" /></td>
+                                <td>
+                                    @evento.Entidad
+                                    @if (evento.EntidadId is not null)
+                                    {
+                                        <span class="tabla__secundario">@evento.EntidadId</span>
+                                    }
+                                </td>
+                                <td class="tabla__detalle">@evento.Detalle</td>
+                                <td class="tabla__ip">@(evento.DireccionIp ?? "—")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!_cargando && _pagina.Total > 0)
+        {
+            <div class="paginas">
+                <span class="paginas__rango">@_pagina.Rango</span>
+                <div class="paginas__controles">
+                    <button type="button" class="boton" disabled="@(_pagina.Pagina <= 1)"
+                            @onclick="() => IrAPaginaAsync(1)" aria-label="Primera página">«</button>
+                    <button type="button" class="boton" disabled="@(_pagina.Pagina <= 1)"
+                            @onclick="() => IrAPaginaAsync(_pagina.Pagina - 1)" aria-label="Página anterior">‹</button>
+                    <span class="paginas__actual">Página @_pagina.Pagina de @_pagina.TotalPaginas</span>
+                    <button type="button" class="boton" disabled="@(_pagina.Pagina >= _pagina.TotalPaginas)"
+                            @onclick="() => IrAPaginaAsync(_pagina.Pagina + 1)" aria-label="Página siguiente">›</button>
+                    <button type="button" class="boton" disabled="@(_pagina.Pagina >= _pagina.TotalPaginas)"
+                            @onclick="() => IrAPaginaAsync(_pagina.TotalPaginas)" aria-label="Última página">»</button>
+                </div>
+            </div>
+        }
+    </PanelCard>
+</div>
+
+@code {
+    /// <summary>?vista=denegados abre directo los accesos rechazados (tarjeta de "Usuarios y roles").</summary>
+    [SupplyParameterFromQuery(Name = "vista")]
+    private string? Vista { get; set; }
+
+    /// <summary>?usuario=ID abre la actividad de una persona (enlace desde su ficha).</summary>
+    [SupplyParameterFromQuery(Name = "usuario")]
+    private int? UsuarioSolicitado { get; set; }
+
+    private const int TamanoPagina = 50;
+
+    /// <summary>Texto con el que seg.usp_Usuario_ValidarAcceso marca los accesos rechazados.</summary>
+    private const string TextoAccesoDenegado = "Intento de acceso";
+
+    private FiltroBitacora _filtro = new();
+    private SelectoresAdministracion _selectores = new();
+    private PaginaBitacora _pagina = new();
+    private ResumenBitacora _resumen = new();
+
+    private bool _cargando = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _selectores = await Catalogo.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    /// <summary>
+    /// Se toman aquí los parámetros de la dirección, que corren también cuando se
+    /// llega a esta misma página con otros (por ejemplo desde el menú, estando ya
+    /// en una vista filtrada).
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        _filtro = new FiltroBitacora { UsuarioId = UsuarioSolicitado };
+
+        if (Vista == "denegados")
+        {
+            AplicarVistaDenegados(_filtro);
+        }
+        else if (UsuarioSolicitado is not null)
+        {
+            // La actividad de una persona se mira con perspectiva: un mes, y con
+            // sus inicios de sesión, que es justo lo que se suele preguntar.
+            _filtro.FechaDesde = _filtro.FechaHasta.AddDays(-30);
+            _filtro.OcultarAccesosExitosos = false;
+        }
+
+        await ConsultarAsync(pagina: 1, conResumen: true);
+    }
+
+    /// <summary>
+    /// Lee una página y, si cambió el rango de fechas, también el resumen: los
+    /// indicadores dependen solo de las fechas, no de los demás filtros.
+    /// </summary>
+    private async Task ConsultarAsync(int pagina, bool conResumen)
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            if (conResumen)
+            {
+                _resumen = await Auditoria.ResumenAsync(_filtro.FechaDesde, _filtro.FechaHasta);
+            }
+
+            _pagina = await Auditoria.ListarAsync(_filtro, pagina, TamanoPagina);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+            _pagina = new PaginaBitacora();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task CambiarAsync(Action<FiltroBitacora> cambio)
+    {
+        cambio(_filtro);
+        return ConsultarAsync(pagina: 1, conResumen: false);
+    }
+
+    private Task CambiarFechasAsync(DateOnly? desde = null, DateOnly? hasta = null)
+    {
+        _filtro.FechaDesde = desde ?? _filtro.FechaDesde;
+        _filtro.FechaHasta = hasta ?? _filtro.FechaHasta;
+        return ConsultarAsync(pagina: 1, conResumen: true);
+    }
+
+    private Task IrAPaginaAsync(int pagina) =>
+        ConsultarAsync(Math.Clamp(pagina, 1, _pagina.TotalPaginas), conResumen: false);
+
+    /// <summary>Pulsar la acción activa la quita, para volver a verlas todas.</summary>
+    private Task FiltrarAccionAsync(string accion) =>
+        CambiarAsync(f =>
+        {
+            f.Accion = f.Accion == accion ? null : accion;
+
+            // Filtrar por "Acceso" con los exitosos ocultos dejaría fuera casi
+            // todo lo que se quiso ver.
+            if (f.Accion == "Acceso")
+            {
+                f.OcultarAccesosExitosos = false;
+            }
+        });
+
+    private Task VerDenegadosAsync() => CambiarAsync(AplicarVistaDenegados);
+
+    private Task LimpiarAsync()
+    {
+        _filtro = new FiltroBitacora();
+        return ConsultarAsync(pagina: 1, conResumen: true);
+    }
+
+    private static void AplicarVistaDenegados(FiltroBitacora f)
+    {
+        f.Accion = "Acceso";
+        f.Busqueda = TextoAccesoDenegado;
+        f.UsuarioId = null;
+        f.OcultarAccesosExitosos = true;
+    }
+
+    private static TonoChip TonoDe(EventoBitacora e) => e switch
+    {
+        { EsAccesoDenegado: true } => TonoChip.Peligro,
+        { Accion: "Eliminacion" } => TonoChip.Advertencia,
+        { Accion: "CambioEstado" } => TonoChip.Advertencia,
+        { Accion: "Liberacion" or "Creacion" } => TonoChip.Exito,
+        _ => TonoChip.Neutro
+    };
+
+    private static DateOnly LeerFecha(ChangeEventArgs e, DateOnly actual) =>
+        DateOnly.TryParseExact(e.Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                               DateTimeStyles.None, out var fecha)
+            ? fecha
+            : actual;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id != 0 ? id : null;
+
+    private static string? LeerTexto(ChangeEventArgs e) =>
+        string.IsNullOrWhiteSpace(e.Value?.ToString()) ? null : e.Value!.ToString()!.Trim();
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo consultar la bitácora. Intente de nuevo o avise a sistemas."
+    };
+}

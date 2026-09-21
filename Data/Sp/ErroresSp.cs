@@ -12,7 +12,8 @@ namespace calidad_app.Data.Sp;
 ///
 /// Cada módulo mantiene su propio catálogo (<see cref="ErroresInspeccion"/>,
 /// <see cref="ErroresCalidad"/>, <see cref="ErroresCatalogos"/>,
-/// <see cref="ErroresProduccion"/>) y aquí se consultan en orden. Si aparece un número sin traducir se usa el mensaje
+/// <see cref="ErroresProduccion"/>, <see cref="ErroresAdministracion"/>) y aquí se
+/// consultan en orden. Si aparece un número sin traducir se usa el mensaje
 /// original del procedimiento, que ya es legible: es lo que ocurre a propósito
 /// con el error 50148, cuyo texto trae la lista de lo que impide liberar el
 /// registro.
@@ -40,6 +41,7 @@ public static class ErroresSp
             ErroresCalidad.Mensajes.TryGetValue(ex.Number, out var calidad) ? calidad :
             ErroresCatalogos.Mensajes.TryGetValue(ex.Number, out var catalogos) ? catalogos :
             ErroresProduccion.Mensajes.TryGetValue(ex.Number, out var produccion) ? produccion :
+            ErroresAdministracion.Mensajes.TryGetValue(ex.Number, out var administracion) ? administracion :
             ex.Message;
 
         return new ReglaNegocioException(mensaje, ex.Number);

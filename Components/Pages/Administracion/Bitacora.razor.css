@@ -1,0 +1,256 @@
+/* Estilos de la bitácora.
+
+   Es una pantalla de consulta a todo lo ancho, como el control de desperdicio:
+   arriba los filtros, luego los totales del periodo y el reparto por acción, y
+   debajo la tabla paginada. */
+
+.bitacora {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+}
+
+.filtros__campo > span {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__campo input,
+.filtros__campo select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+    max-width: 14rem;
+}
+
+.filtros__campo--ancho {
+    flex: 1 1 10rem;
+}
+
+.filtros__campo--ancho input {
+    max-width: none;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+    padding-bottom: 0.3rem;
+}
+
+.filtros__atajos {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: auto;
+}
+
+/* ---- Totales del periodo ---- */
+.totales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--op-info-bg);
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.totales__dato {
+    display: flex;
+    flex-direction: column;
+}
+
+.totales__valor {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--op-info-fg);
+    line-height: 1.15;
+}
+
+.totales__dato--alerta .totales__valor {
+    color: var(--op-peligro-fg);
+}
+
+.totales__etiqueta {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Reparto por acción ---- */
+.acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.acciones__chip {
+    border: 1px solid var(--op-borde);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.68rem;
+    padding: 0.15rem 0.55rem;
+    cursor: pointer;
+}
+
+.acciones__chip strong {
+    margin-left: 0.2rem;
+    color: var(--op-texto-secundario);
+}
+
+.acciones__chip:hover {
+    background: var(--op-seleccion);
+}
+
+.acciones__chip--activa {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.acciones__chip--activa strong {
+    color: #fff;
+}
+
+/* ---- Tabla ---- */
+.contenido {
+    overflow-x: auto;
+}
+
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.73rem;
+}
+
+.tabla thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla tbody td {
+    padding: 0.45rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+/* Un acceso rechazado se distingue a simple vista: es lo que se viene a buscar. */
+.tabla__fila--denegada td {
+    background: var(--op-peligro-bg);
+}
+
+.tabla__fecha,
+.tabla__ip {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.tabla__detalle {
+    min-width: 16rem;
+    overflow-wrap: anywhere;
+}
+
+.tabla__secundario {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+    overflow-wrap: anywhere;
+}
+
+.tabla__sin-usuario {
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.tabla__vacio {
+    text-align: center;
+    padding: 1.5rem 0.65rem !important;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+}
+
+/* ---- Paginación (en la base, por eso no usa el Paginador compartido) ---- */
+.paginas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-top: 1px solid var(--op-borde);
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+.paginas__controles {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.paginas__actual {
+    padding: 0 0.4rem;
+}
+
+/* ---- Botones y mensajes ---- */
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+.boton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ficha__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border-bottom: 1px solid var(--op-peligro-fg);
+}
