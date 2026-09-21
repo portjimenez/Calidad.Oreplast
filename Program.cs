@@ -50,6 +50,8 @@ builder.Services.AddScoped<INoConformidadService, NoConformidadService>();
 builder.Services.AddScoped<ILoteService, LoteService>();
 builder.Services.AddScoped<ILiberacionService, LiberacionService>();
 builder.Services.AddScoped<ICertificadoService, CertificadoService>();
+// Complemento del módulo 3 (db/modulo3_fichas): versiones de la ficha técnica.
+builder.Services.AddScoped<IFichaTecnicaService, FichaTecnicaService>();
 
 // Módulo 4 - Catálogos. La estructura de la planta (áreas, líneas, máquinas y turnos) va
 // en un solo servicio porque forma una jerarquía cuyas reglas se cruzan; las metas van

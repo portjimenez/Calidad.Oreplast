@@ -256,6 +256,12 @@
                                     <p class="expediente__sin-ficha">
                                         El producto no tiene ficha técnica activa: la inspección no podrá
                                         comparar los parámetros contra tolerancias.
+                                        @* Solo a quien puede abrir la pantalla de fichas: un enlace a un
+                                           403 no ayuda a nadie. *@
+                                        <AuthorizeView Policy="CONSULTAR_FICHA">
+                                            <a class="expediente__enlace-ficha"
+                                               href="@($"/fichas-tecnicas?producto={_detalle.ProductoId}")">Ir a su ficha técnica</a>
+                                        </AuthorizeView>
                                     </p>
                                 }
                             </div>

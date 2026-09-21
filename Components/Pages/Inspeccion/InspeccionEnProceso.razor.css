@@ -226,3 +226,10 @@
     font-size: 0.72rem;
     color: var(--op-exito-fg);
 }
+
+/* Enlace a la ficha técnica del producto, junto al dato del encabezado. */
+.enlace-ficha {
+    margin-left: 0.35rem;
+    font-size: 0.68rem;
+    color: var(--op-azul);
+}

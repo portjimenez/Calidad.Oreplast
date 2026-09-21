@@ -77,6 +77,11 @@
                     @if (!_orden.ProductoConFicha)
                     {
                         <span class="sin-ficha">sin ficha técnica</span>
+                        <AuthorizeView Policy="CONSULTAR_FICHA">
+                            @* Pestaña nueva: salir de aquí perdería el registro que se está abriendo. *@
+                            <a class="enlace-ficha" target="_blank"
+                               href="@($"/fichas-tecnicas?producto={_orden.ProductoId}")">ver ficha</a>
+                        </AuthorizeView>
                     }
                 </div>
                 <button type="button" class="enlace" @onclick="CambiarOrden">Cambiar</button>

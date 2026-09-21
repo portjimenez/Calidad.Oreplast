@@ -1,0 +1,487 @@
+/* Estilos de la pantalla de fichas técnicas.
+
+   Maestro–detalle como Catálogos y Usuarios: productos a la izquierda y, a la
+   derecha, la ficha con sus versiones y la tabla del mockup (parámetro,
+   objetivo, límites, unidad, crítico). La ficha es más ancha que en las otras
+   pantallas porque la tabla de tolerancias es su contenido principal. */
+
+.fichas {
+    display: flex;
+    flex-direction: column;
+}
+
+.fichas__cuerpo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.fichas__lista {
+    flex: 1 1 22rem;
+    min-width: 0;
+}
+
+.fichas__detalle {
+    flex: 2 1 34rem;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.65rem;
+    border-left: 1px solid var(--op-borde);
+    align-self: stretch;
+}
+
+.fichas__vacio {
+    margin: 0;
+    padding: 2rem 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+.fichas__aviso-lista {
+    margin: 0;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.68rem;
+    color: var(--op-advertencia-fg);
+    background: var(--op-advertencia-bg);
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__busqueda {
+    flex: 1 1 9rem;
+    min-width: 8rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.filtros__select,
+.nueva select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+    max-width: 100%;
+}
+
+.filtros__check {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Tabla maestra ---- */
+.tabla-maestro {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.tabla-maestro thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-maestro tbody td {
+    padding: 0.45rem 0.65rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla-maestro tbody tr {
+    cursor: pointer;
+}
+
+.tabla-maestro tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-maestro tbody tr:hover {
+    background: var(--op-seleccion);
+}
+
+.tabla-maestro__fila--seleccionada,
+.tabla-maestro__fila--seleccionada:nth-child(even) {
+    background: var(--op-seleccion) !important;
+}
+
+.tabla-maestro__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+    cursor: default;
+}
+
+.tabla-maestro__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla-maestro__principal {
+    font-weight: 600;
+}
+
+.tabla-maestro__secundario {
+    display: block;
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+/* Los nombres de producto del ERP son largos ("12005529 180MM X 320MM X BOPP…"):
+   una línea recortada, completo en el tooltip. */
+.tabla-maestro__recorte {
+    max-width: 18rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- Encabezado del producto ---- */
+.producto__titulo {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.producto__nombre {
+    margin: 0.1rem 0 0;
+    font-size: 0.75rem;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}
+
+.producto__datos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    margin: 0.25rem 0 0;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Versiones: una pastilla por versión, coloreada por estado ---- */
+.versiones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.version {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    border: 1px solid var(--op-borde);
+    border-left-width: 3px;
+    border-radius: 3px;
+    background: #fff;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.72rem;
+    color: var(--op-texto);
+    cursor: pointer;
+}
+
+.version span {
+    font-size: 0.64rem;
+    color: var(--op-texto-secundario);
+}
+
+.version:hover {
+    background: var(--op-fila-alt);
+}
+
+.version--vigente     { border-left-color: var(--op-exito-fg); }
+.version--programada  { border-left-color: var(--op-info-fg); }
+.version--borrador    { border-left-color: var(--op-advertencia-fg); border-style: dashed; border-left-style: solid; }
+.version--reemplazada { border-left-color: var(--op-neutro-fg); }
+
+.version--activa {
+    background: var(--op-seleccion);
+}
+
+/* ---- Versión nueva ---- */
+.nueva {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px dashed var(--op-borde);
+    border-radius: 3px;
+    background: var(--op-fila-alt);
+}
+
+.nueva__titulo {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.vigencia {
+    font-size: 0.72rem;
+    color: var(--op-texto);
+}
+
+.borrador {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+/* ---- Tabla de tolerancias ---- */
+.tolerancias {
+    overflow-x: auto;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+}
+
+.tabla-tol {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.73rem;
+}
+
+.tabla-tol thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla-tol tbody td {
+    padding: 0.35rem 0.55rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+    color: var(--op-texto);
+    vertical-align: middle;
+}
+
+.tabla-tol tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla-tol__num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.tabla-tol__aplica {
+    text-align: center;
+    width: 3.5rem;
+}
+
+.tabla-tol__codigo {
+    display: block;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.6rem;
+    color: var(--op-texto-secundario);
+}
+
+.tabla-tol__retirado {
+    display: inline-block;
+    margin-top: 0.1rem;
+    padding: 0 0.3rem;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    background: var(--op-neutro-bg);
+    color: var(--op-neutro-fg);
+}
+
+.tabla-tol__no {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+/* Un parámetro que no aplica al producto se ve apagado, pero sigue a la vista
+   para poder marcarlo si hiciera falta. */
+.tabla-tol__fila--apagada td {
+    color: var(--op-texto-secundario);
+}
+
+.tabla-tol__input {
+    width: 5.5rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.72rem;
+    text-align: right;
+    font-family: inherit;
+    color: var(--op-texto);
+    background: #fff;
+}
+
+.tabla-tol__input:disabled {
+    background: transparent;
+    border-color: transparent;
+}
+
+/* ---- Campos, mensajes y acciones ---- */
+.campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.75rem;
+}
+
+.campo > span {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.campo--fecha input {
+    width: 11rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    padding: 0.3rem 0.4rem;
+    font-family: inherit;
+    font-size: 0.75rem;
+}
+
+.ficha__error,
+.ficha__aviso {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
+}
+
+.ficha__error {
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border: 1px solid var(--op-peligro-fg);
+}
+
+.ficha__aviso {
+    background: var(--op-exito-bg);
+    color: var(--op-exito-fg);
+    border: 1px solid var(--op-exito-fg);
+}
+
+.ficha__pista {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.ficha__pista--atencion {
+    padding: 0.4rem 0.5rem;
+    background: var(--op-advertencia-bg);
+    color: var(--op-advertencia-fg);
+    border-radius: 3px;
+}
+
+.ficha__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.ficha__sin-guardar {
+    font-size: 0.68rem;
+    font-style: italic;
+    color: var(--op-advertencia-fg);
+}
+
+.confirmacion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--op-info-fg);
+    border-radius: 3px;
+    background: var(--op-info-bg);
+}
+
+.confirmacion p {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: var(--op-texto);
+}
+
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.73rem;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+}
+
+.boton:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--primario {
+    background: var(--op-azul);
+    border-color: var(--op-azul);
+    color: #fff;
+}
+
+.boton--primario:hover:not(:disabled) {
+    background: #1a5f99;
+}
+
+.boton--peligro {
+    background: var(--op-peligro-fg);
+    border-color: var(--op-peligro-fg);
+    color: #fff;
+}
+
+.boton--enlace-peligro {
+    border-color: transparent;
+    background: transparent;
+    color: var(--op-peligro-fg);
+}
+
+.boton--enlace-peligro:hover:not(:disabled) {
+    background: transparent;
+    text-decoration: underline;
+}
+
+@media (max-width: 60rem) {
+    .fichas__detalle {
+        flex: 1 1 100%;
+        border-left: none;
+        border-top: 1px solid var(--op-borde);
+    }
+}

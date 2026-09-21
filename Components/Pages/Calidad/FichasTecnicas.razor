@@ -1,0 +1,802 @@
+@page "/fichas-tecnicas"
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Calidad
+@using calidad_app.Services.Calidad
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "CONSULTAR_FICHA")]
+@inject IFichaTecnicaService Fichas
+@inject IUsuarioActual UsuarioActual
+@inject NavigationManager Navegacion
+
+<PageTitle>Fichas técnicas</PageTitle>
+
+@* La ficha técnica es la referencia contra la cual la inspección detecta las
+   variaciones: define, por producto, el objetivo y los límites de cada
+   parámetro.
+
+   Una ficha ya usada no se edita, se versiona. La ficha que aplica a un
+   registro se recalcula por fecha cada vez que se consulta o se certifica, así
+   que cambiar una versión usada cambiaría los límites que muestran registros
+   ya evaluados. Solo el borrador es editable; al publicarlo entra en vigor
+   desde una fecha que no toque registros ya capturados.
+
+   Consultan: Operador, Ingeniería de Calidad y Jefe de Producción
+   (CONSULTAR_FICHA). Administran: Ingeniería de Calidad y Jefe de Producción
+   (GESTIONAR_FICHA). *@
+
+<div class="fichas">
+    <PanelCard Titulo="Fichas técnicas">
+        <div class="fichas__cuerpo">
+            @* ---------------- Maestro de productos ---------------- *@
+            <div class="fichas__lista">
+                <div class="filtros">
+                    <input type="search" class="filtros__busqueda"
+                           placeholder="Código o nombre del producto…"
+                           value="@_filtro.Busqueda" @onchange="BuscarAsync" />
+                    <select class="filtros__select" value="@(_filtro.Estado ?? string.Empty)"
+                            @onchange="CambiarEstadoFiltroAsync">
+                        <option value="">Todos los productos</option>
+                        <option value="Urgentes">Sin ficha, con órdenes abiertas</option>
+                        <option value="SinFicha">Sin ficha</option>
+                        <option value="ConFicha">Con ficha vigente</option>
+                        <option value="ConBorrador">Con borrador en preparación</option>
+                    </select>
+                </div>
+
+                @if (Recortada)
+                {
+                    <p class="fichas__aviso-lista">
+                        Se muestran los primeros @_productos.Count de @_productos[0].TotalFiltrado productos.
+                        Afine la búsqueda para encontrar el que necesita.
+                    </p>
+                }
+
+                <table class="tabla-maestro">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Ficha</th>
+                            <th class="tabla-maestro__num">Órdenes abiertas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_cargando)
+                        {
+                            <tr><td colspan="3" class="tabla-maestro__vacio">Cargando productos…</td></tr>
+                        }
+                        else if (_productos.Count == 0)
+                        {
+                            <tr><td colspan="3" class="tabla-maestro__vacio">Sin productos que coincidan.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var producto in _pag.Elementos)
+                            {
+                                <tr class="@(producto.ProductoId == _ficha?.ProductoId ? "tabla-maestro__fila--seleccionada" : null)"
+                                    @onclick="() => AbrirProductoAsync(producto.ProductoId)">
+                                    <td>
+                                        <span class="tabla-maestro__principal">@producto.Codigo</span>
+                                        <span class="tabla-maestro__secundario tabla-maestro__recorte"
+                                              title="@producto.Nombre">@producto.Nombre</span>
+                                    </td>
+                                    <td>
+                                        @if (producto.TieneFicha)
+                                        {
+                                            <EstadoChip Texto="@($"{producto.VersionVigente} vigente")" Tono="TonoChip.Exito" />
+                                        }
+                                        else
+                                        {
+                                            <EstadoChip Texto="Sin ficha"
+                                                        Tono="@(producto.EsUrgente ? TonoChip.Peligro : TonoChip.Neutro)" />
+                                        }
+                                        @if (producto.VersionProgramada is not null)
+                                        {
+                                            <span class="tabla-maestro__secundario">
+                                                @producto.VersionProgramada desde @producto.ProgramadaDesde?.ToString("dd/MM/yyyy")
+                                            </span>
+                                        }
+                                        @if (producto.VersionBorrador is not null)
+                                        {
+                                            <span class="tabla-maestro__secundario">Borrador @producto.VersionBorrador</span>
+                                        }
+                                    </td>
+                                    <td class="tabla-maestro__num">@producto.OrdenesAbiertas</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+
+                <Paginador Estado="_pag" Cargando="_cargando" PaginaCambiada="StateHasChanged" />
+            </div>
+
+            @* ---------------- Ficha del producto ---------------- *@
+            <div class="fichas__detalle">
+                @if (_error is not null)
+                {
+                    <p class="ficha__error" role="alert">@_error</p>
+                }
+                @if (_aviso is not null)
+                {
+                    <p class="ficha__aviso" role="status">@_aviso</p>
+                }
+
+                @if (_cargandoDetalle)
+                {
+                    <p class="fichas__vacio">Cargando la ficha…</p>
+                }
+                else if (_ficha is null)
+                {
+                    <p class="fichas__vacio">
+                        Elija un producto para ver su ficha técnica. Los que no tienen ficha y sí tienen
+                        órdenes abiertas aparecen primero: sus mediciones se están capturando sin nada
+                        contra qué compararlas.
+                    </p>
+                }
+                else
+                {
+                    <div class="producto">
+                        <h3 class="producto__titulo">@_ficha.Codigo</h3>
+                        <p class="producto__nombre">@_ficha.Nombre</p>
+                        <p class="producto__datos">
+                            @if (_ficha.ClienteNombre is not null)
+                            {
+                                <span>@_ficha.ClienteNombre</span>
+                            }
+                            <span>@_ficha.OrdenesAbiertas orden(es) abierta(s)</span>
+                            <span>@_ficha.Registros registro(s) de inspección</span>
+                            @if (_ficha.UltimoRegistro is { } ultimo)
+                            {
+                                <span>último el @ultimo.ToString("dd/MM/yyyy")</span>
+                            }
+                        </p>
+                        @if (!_ficha.Activo)
+                        {
+                            <p class="ficha__pista">El producto está inactivo: su ficha se consulta pero no se le abren versiones nuevas.</p>
+                        }
+                    </div>
+
+                    @* ---- Versiones ---- *@
+                    @if (_ficha.Versiones.Count > 0)
+                    {
+                        <div class="versiones" role="tablist">
+                            @foreach (var version in _ficha.Versiones)
+                            {
+                                <button type="button" role="tab"
+                                        aria-selected="@(version.FichaId == _ficha.FichaSeleccionadaId)"
+                                        class="version version--@version.Estado.ToLowerInvariant() @(version.FichaId == _ficha.FichaSeleccionadaId ? "version--activa" : null)"
+                                        @onclick="() => AbrirVersionAsync(version.FichaId)">
+                                    <strong>@version.Version</strong>
+                                    <span>@TextoEstado(version.Estado)</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="ficha__pista ficha__pista--atencion">
+                            Este producto no tiene ficha técnica.
+                            @if (_ficha.OrdenesAbiertas > 0)
+                            {
+                                <text> Tiene @_ficha.OrdenesAbiertas orden(es) abierta(s): sus mediciones quedan como «no evaluables» y no levantan alertas.</text>
+                            }
+                            @if (!_puedeGestionar)
+                            {
+                                <text> Solicite a Ingeniería de Calidad o al Jefe de Producción que la cree.</text>
+                            }
+                        </p>
+                    }
+
+                    @* ---- Abrir una versión nueva ---- *@
+                    @if (_puedeGestionar && _ficha.Activo && _ficha.Borrador is null)
+                    {
+                        <div class="nueva">
+                            <span class="nueva__titulo">
+                                @(_ficha.Versiones.Count == 0 ? "Crear la ficha" : "Nueva versión")
+                            </span>
+                            <select value="@_origen" @onchange="CambiarOrigenAsync">
+                                @if (_ficha.Vigente is { } vigente)
+                                {
+                                    <option value="vigente">Copia de @vigente.Version (vigente)</option>
+                                }
+                                <option value="otra">Copia de la ficha de otro producto</option>
+                                <option value="vacia">Vacía</option>
+                            </select>
+                            @if (_origen == "otra")
+                            {
+                                <select value="@_fichaOrigenId" @onchange="e => _fichaOrigenId = LeerId(e)">
+                                    <option value="0">Elija el producto de origen…</option>
+                                    @foreach (var origen in _fichasOrigen.Where(o => o.ProductoId != _ficha.ProductoId))
+                                    {
+                                        <option value="@origen.FichaVigenteId">@origen.Codigo · @origen.VersionVigente</option>
+                                    }
+                                </select>
+                            }
+                            <button type="button" class="boton boton--primario"
+                                    disabled="@(_guardando || (_origen == "otra" && _fichaOrigenId == 0))"
+                                    @onclick="CrearVersionAsync">
+                                Crear borrador
+                            </button>
+                        </div>
+                        @if (_origen == "otra")
+                        {
+                            <p class="ficha__pista">
+                                Útil para un producto nuevo: los rangos de proceso (temperaturas, tratado) suelen
+                                repetirse entre productos parecidos; revise después las medidas del producto.
+                            </p>
+                        }
+                    }
+
+                    @* ---- La versión elegida ---- *@
+                    @if (_ficha.Seleccionada is { } sel)
+                    {
+                        <div class="vigencia">
+                            @switch (sel.Estado)
+                            {
+                                case EstadosFicha.Borrador:
+                                    <span>Borrador: ninguna inspección lo lee todavía.</span>
+                                    break;
+                                case EstadosFicha.Programada:
+                                    <span>Entra en vigor el <strong>@sel.VigenteDesde.ToString("dd/MM/yyyy")</strong>.</span>
+                                    break;
+                                case EstadosFicha.Vigente:
+                                    <span>Vigente desde <strong>@sel.VigenteDesde.ToString("dd/MM/yyyy")</strong> · la usan @sel.Registros registro(s).</span>
+                                    break;
+                                default:
+                                    <span>
+                                        Rigió del @sel.VigenteDesde.ToString("dd/MM/yyyy")
+                                        al @sel.VigenteHasta?.AddDays(-1).ToString("dd/MM/yyyy")
+                                        · la usan @sel.Registros registro(s).
+                                    </span>
+                                    break;
+                            }
+                        </div>
+
+                        @if (EsEditable)
+                        {
+                            <div class="borrador">
+                                <label class="campo campo--fecha">
+                                    <span>Vigente desde</span>
+                                    <input type="date" value="@_vigenteDesde.ToString("yyyy-MM-dd")"
+                                           min="@_ficha.FechaMinimaVigencia.ToString("yyyy-MM-dd")"
+                                           @onchange="CambiarVigencia" />
+                                </label>
+                                <p class="ficha__pista">
+                                    La fecha más temprana posible es el
+                                    <strong>@_ficha.FechaMinimaVigencia.ToString("dd/MM/yyyy")</strong>: no puede ser
+                                    anterior a hoy, ni a la última versión publicada, ni tomar registros ya capturados
+                                    (se volverían a leer contra límites distintos de los que se usaron al evaluarlos).
+                                </p>
+                            </div>
+                        }
+
+                        @if (EsEditable && CriticosSinDefinir.Count > 0)
+                        {
+                            <p class="ficha__pista ficha__pista--atencion">
+                                No define @CriticosSinDefinir.Count parámetro(s) crítico(s):
+                                @string.Join(", ", CriticosSinDefinir.Select(t => t.ParametroNombre)).
+                                La inspección no los exigirá en este producto. Es correcto si no le aplican
+                                (por ejemplo, el nivel de tratado en un producto sin tratado corona).
+                            </p>
+                        }
+
+                        @* ---- Tabla de tolerancias ---- *@
+                        <div class="tolerancias">
+                            <table class="tabla-tol">
+                                <thead>
+                                    <tr>
+                                        @if (EsEditable)
+                                        {
+                                            <th class="tabla-tol__aplica">Aplica</th>
+                                        }
+                                        <th>Parámetro</th>
+                                        <th class="tabla-tol__num">Objetivo</th>
+                                        <th class="tabla-tol__num">Lím. inf.</th>
+                                        <th class="tabla-tol__num">Lím. sup.</th>
+                                        <th>Unidad</th>
+                                        <th>Crítico</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (FilasVisibles.Count == 0)
+                                    {
+                                        <tr>
+                                            <td colspan="7" class="tabla-maestro__vacio">
+                                                Esta versión no define ninguna tolerancia.
+                                            </td>
+                                        </tr>
+                                    }
+                                    @foreach (var tol in FilasVisibles)
+                                    {
+                                        <tr class="@(EsEditable && !tol.Aplica ? "tabla-tol__fila--apagada" : null)">
+                                            @if (EsEditable)
+                                            {
+                                                <td class="tabla-tol__aplica">
+                                                    <input type="checkbox" checked="@tol.Aplica"
+                                                           aria-label="@($"{tol.ParametroNombre} aplica")"
+                                                           @onchange="e => { tol.Aplica = e.Value is true; _modificado = true; }" />
+                                                </td>
+                                            }
+                                            <td>
+                                                @tol.ParametroNombre
+                                                <span class="tabla-tol__codigo">@tol.ParametroCodigo</span>
+                                                @if (!tol.ParametroActivo)
+                                                {
+                                                    <span class="tabla-tol__retirado">retirado del catálogo</span>
+                                                }
+                                            </td>
+                                            @if (EsEditable)
+                                            {
+                                                <td class="tabla-tol__num">@CampoNumero(tol, t => t.ValorObjetivo, (t, v) => t.ValorObjetivo = v)</td>
+                                                <td class="tabla-tol__num">@CampoNumero(tol, t => t.LimiteInferior, (t, v) => t.LimiteInferior = v)</td>
+                                                <td class="tabla-tol__num">@CampoNumero(tol, t => t.LimiteSuperior, (t, v) => t.LimiteSuperior = v)</td>
+                                            }
+                                            else
+                                            {
+                                                <td class="tabla-tol__num">@Numero(tol.ValorObjetivo)</td>
+                                                <td class="tabla-tol__num">@Numero(tol.LimiteInferior)</td>
+                                                <td class="tabla-tol__num">@Numero(tol.LimiteSuperior)</td>
+                                            }
+                                            <td>@(tol.Unidad ?? "—")</td>
+                                            <td>
+                                                @if (tol.EsCritico)
+                                                {
+                                                    <EstadoChip Texto="Sí" Tono="TonoChip.Advertencia" />
+                                                }
+                                                else
+                                                {
+                                                    <span class="tabla-tol__no">No</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (!EsEditable)
+                        {
+                            <label class="filtros__check">
+                                <input type="checkbox" checked="@_mostrarTodos"
+                                       @onchange="e => _mostrarTodos = e.Value is true" />
+                                Mostrar también los parámetros que esta versión no define
+                            </label>
+                        }
+
+                        @* ---- Acciones ---- *@
+                        @if (_puedeGestionar)
+                        {
+                            @if (_confirmacion is not null)
+                            {
+                                <div class="confirmacion" role="alertdialog">
+                                    <p>@TextoConfirmacion(sel)</p>
+                                    <div class="ficha__acciones">
+                                        <button type="button" class="boton @(_confirmacion == "descartar" ? "boton--peligro" : "boton--primario")"
+                                                disabled="@_guardando" @onclick="ConfirmarAsync">
+                                            @(_guardando ? "Procesando…" : "Confirmar")
+                                        </button>
+                                        <button type="button" class="boton" disabled="@_guardando"
+                                                @onclick="() => _confirmacion = null">Cancelar</button>
+                                    </div>
+                                </div>
+                            }
+                            else if (EsEditable)
+                            {
+                                <div class="ficha__acciones">
+                                    <button type="button" class="boton boton--primario" disabled="@_guardando"
+                                            @onclick="GuardarBorradorAsync">
+                                        @(_guardando ? "Guardando…" : "Guardar borrador")
+                                    </button>
+                                    <button type="button" class="boton" disabled="@_guardando"
+                                            @onclick="@(() => _confirmacion = "publicar")">Publicar…</button>
+                                    <button type="button" class="boton boton--enlace-peligro" disabled="@_guardando"
+                                            @onclick="@(() => _confirmacion = "descartar")">Descartar borrador</button>
+                                    @if (_modificado)
+                                    {
+                                        <span class="ficha__sin-guardar">Cambios sin guardar</span>
+                                    }
+                                </div>
+                            }
+                            else if (sel.SePuedeRetirar)
+                            {
+                                <div class="ficha__acciones">
+                                    <button type="button" class="boton" disabled="@_guardando"
+                                            @onclick="@(() => _confirmacion = "retirar")">Retirar publicación…</button>
+                                </div>
+                                <p class="ficha__pista">
+                                    Ningún registro de inspección usa todavía esta versión, así que se puede devolver
+                                    a borrador para corregirla.
+                                </p>
+                            }
+                            else if (sel.Activa)
+                            {
+                                <p class="ficha__pista">
+                                    Esta versión ya la usan registros de inspección: no se modifica. Para cambiar
+                                    un límite, abra una versión nueva
+                                    @(_ficha.Borrador is null ? "desde arriba" : $"o termine el borrador {_ficha.Borrador.Version}").
+                                </p>
+                            }
+                        }
+                    }
+                }
+            </div>
+        </div>
+    </PanelCard>
+</div>
+
+@code {
+    /// <summary>?producto=ID abre directo la ficha de un producto (enlace desde órdenes e inspección).</summary>
+    [SupplyParameterFromQuery(Name = "producto")]
+    private int? ProductoSolicitado { get; set; }
+
+    private readonly FiltroFichas _filtro = new();
+    private List<ProductoFicha> _productos = [];
+    private readonly Paginacion<ProductoFicha> _pag = new();
+
+    private FichaProducto? _ficha;
+    private bool _puedeGestionar;
+
+    // Edición del borrador: copia de trabajo de la tabla y la fecha.
+    private List<ToleranciaFicha> _edicion = [];
+    private DateOnly _vigenteDesde;
+    private bool _modificado;
+    private bool _mostrarTodos;
+
+    // Origen de una versión nueva: "vigente", "otra" o "vacia".
+    private string _origen = "vigente";
+    private int _fichaOrigenId;
+    private List<ProductoFicha> _fichasOrigen = [];
+
+    /// <summary>"publicar", "descartar" o "retirar" mientras se pide confirmación.</summary>
+    private string? _confirmacion;
+
+    private bool _cargando = true;
+    private bool _cargandoDetalle;
+    private bool _guardando;
+    private string? _error;
+    private string? _aviso;
+
+    private bool Recortada => _productos.Count > 0 && _productos[0].TotalFiltrado > _productos.Count;
+
+    private bool EsEditable => _puedeGestionar && _ficha?.Seleccionada?.EsBorrador == true;
+
+    /// <summary>
+    /// En un borrador se ven todos los parámetros (hay que poder marcar los que
+    /// faltan); en una versión publicada solo los que define, salvo que se pida
+    /// lo contrario.
+    /// </summary>
+    private List<ToleranciaFicha> FilasVisibles =>
+        EsEditable || _mostrarTodos
+            ? _edicion
+            : _edicion.Where(t => t.Aplica).ToList();
+
+    private List<ToleranciaFicha> CriticosSinDefinir =>
+        _edicion.Where(t => t.EsCritico && t.ParametroActivo && !t.Aplica).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _puedeGestionar = await UsuarioActual.TienePermisoAsync("GESTIONAR_FICHA");
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProductoSolicitado is { } productoId && productoId != _ficha?.ProductoId)
+        {
+            await AbrirProductoAsync(productoId);
+        }
+    }
+
+    /* ---------------- Maestro ---------------- */
+
+    private async Task CargarListaAsync(bool reiniciarPagina = false)
+    {
+        _cargando = true;
+
+        try
+        {
+            _productos = await Fichas.ListarAsync(_filtro);
+
+            if (reiniciarPagina)
+            {
+                _pag.Reiniciar(_productos);
+            }
+            else
+            {
+                _pag.Actualizar(_productos, p => p.ProductoId == _ficha?.ProductoId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task BuscarAsync(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString()?.Trim();
+        _filtro.Busqueda = string.IsNullOrEmpty(texto) ? null : texto;
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    private async Task CambiarEstadoFiltroAsync(ChangeEventArgs e)
+    {
+        var estado = e.Value?.ToString();
+        _filtro.Estado = string.IsNullOrEmpty(estado) ? null : estado;
+        await CargarListaAsync(reiniciarPagina: true);
+    }
+
+    /* ---------------- Detalle ---------------- */
+
+    private async Task AbrirProductoAsync(int productoId)
+    {
+        _error = null;
+        _aviso = null;
+        await CargarDetalleAsync(productoId, fichaId: null);
+    }
+
+    private async Task AbrirVersionAsync(int fichaId)
+    {
+        if (_ficha is null || fichaId == _ficha.FichaSeleccionadaId)
+        {
+            return;
+        }
+
+        _error = null;
+        _aviso = null;
+        await CargarDetalleAsync(_ficha.ProductoId, fichaId);
+    }
+
+    /// <summary>
+    /// Lee el producto con sus versiones y deja lista la copia de trabajo de la
+    /// tabla. Cambiar de versión o de producto descarta los cambios sin guardar
+    /// del borrador (el aviso "Cambios sin guardar" está a la vista).
+    /// </summary>
+    private async Task CargarDetalleAsync(int productoId, int? fichaId)
+    {
+        _cargandoDetalle = true;
+        _confirmacion = null;
+
+        try
+        {
+            _ficha = await Fichas.ObtenerAsync(productoId, fichaId);
+
+            if (_ficha is null)
+            {
+                _error = "El producto indicado no existe.";
+                return;
+            }
+
+            _edicion = _ficha.Tolerancias;
+            _vigenteDesde = _ficha.Seleccionada?.VigenteDesde ?? _ficha.FechaMinimaVigencia;
+            _modificado = false;
+            _mostrarTodos = false;
+            _origen = _ficha.Vigente is null ? "otra" : "vigente";
+            _fichaOrigenId = 0;
+
+            if (_origen == "otra")
+            {
+                await CargarFichasOrigenAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargandoDetalle = false;
+        }
+    }
+
+    /* ---------------- Versión nueva ---------------- */
+
+    private async Task CambiarOrigenAsync(ChangeEventArgs e)
+    {
+        _origen = e.Value?.ToString() ?? "vacia";
+        _fichaOrigenId = 0;
+
+        if (_origen == "otra")
+        {
+            await CargarFichasOrigenAsync();
+        }
+    }
+
+    /// <summary>
+    /// Fichas vigentes de otros productos, para copiar. Se piden solo cuando se
+    /// elige esa opción: la mayoría de las veces se copia la del propio producto.
+    /// </summary>
+    private async Task CargarFichasOrigenAsync()
+    {
+        if (_fichasOrigen.Count > 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _fichasOrigen = await Fichas.ListarAsync(new FiltroFichas { Estado = "ConFicha" }, maxFilas: 1000);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    private async Task CrearVersionAsync()
+    {
+        if (_ficha is null)
+        {
+            return;
+        }
+
+        int? copiarDe = _origen switch
+        {
+            "vigente" => _ficha.Vigente?.FichaId,
+            "otra" => _fichaOrigenId == 0 ? null : _fichaOrigenId,
+            _ => null
+        };
+
+        await EjecutarAsync(
+            async () =>
+            {
+                var fichaId = await Fichas.CrearVersionAsync(_ficha.ProductoId, copiarDe);
+                return (fichaId, "Borrador creado. Ajuste las tolerancias y publíquelo cuando esté listo.");
+            });
+    }
+
+    /* ---------------- Borrador ---------------- */
+
+    private void CambiarVigencia(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParseExact(e.Value?.ToString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                                   DateTimeStyles.None, out var fecha))
+        {
+            _vigenteDesde = fecha;
+            _modificado = true;
+        }
+    }
+
+    private IEnumerable<ToleranciaEdicion> ToleranciasAEnviar() =>
+        _edicion
+            .Where(t => t.Aplica)
+            .Select(t => new ToleranciaEdicion(t.ParametroId, t.ValorObjetivo, t.LimiteInferior, t.LimiteSuperior));
+
+    private Task GuardarBorradorAsync()
+    {
+        var fichaId = _ficha!.FichaSeleccionadaId!.Value;
+
+        return EjecutarAsync(async () =>
+        {
+            await Fichas.GuardarBorradorAsync(fichaId, _vigenteDesde, ToleranciasAEnviar());
+            return (fichaId, "Borrador guardado.");
+        });
+    }
+
+    /// <summary>
+    /// Ejecuta la acción que se estaba confirmando. Publicar guarda primero el
+    /// borrador: lo que se publica es exactamente lo que está en pantalla.
+    /// </summary>
+    private Task ConfirmarAsync()
+    {
+        var sel = _ficha!.Seleccionada!;
+
+        return _confirmacion switch
+        {
+            "publicar" => EjecutarAsync(async () =>
+            {
+                await Fichas.GuardarBorradorAsync(sel.FichaId, _vigenteDesde, ToleranciasAEnviar());
+                await Fichas.PublicarAsync(sel.FichaId);
+                return (sel.FichaId, $"Versión {sel.Version} publicada: rige desde el {_vigenteDesde:dd/MM/yyyy}.");
+            }),
+
+            "descartar" => EjecutarAsync(async () =>
+            {
+                await Fichas.EliminarBorradorAsync(sel.FichaId);
+                return ((int?)null, $"Borrador {sel.Version} descartado.");
+            }),
+
+            "retirar" => EjecutarAsync(async () =>
+            {
+                await Fichas.RetirarPublicacionAsync(sel.FichaId);
+                return (sel.FichaId, $"La versión {sel.Version} volvió a borrador: ya puede corregirla.");
+            }),
+
+            _ => Task.CompletedTask
+        };
+    }
+
+    /// <summary>
+    /// Envoltura común de las escrituras: bloquea los botones, muestra el aviso
+    /// o el error, y vuelve a leer el detalle (abriendo la versión que devolvió
+    /// la acción) y la lista, porque el estado de la ficha del producto cambió.
+    /// </summary>
+    private async Task EjecutarAsync(Func<Task<(int? FichaId, string Aviso)>> accion)
+    {
+        if (_ficha is null)
+        {
+            return;
+        }
+
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+        var productoId = _ficha.ProductoId;
+
+        try
+        {
+            var (fichaId, aviso) = await accion();
+            await CargarDetalleAsync(productoId, fichaId);
+            await CargarListaAsync();
+            _aviso = aviso;
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+            _confirmacion = null;
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private string TextoConfirmacion(VersionFicha sel) => _confirmacion switch
+    {
+        "publicar" =>
+            $"Se publicará la versión {sel.Version} con {ToleranciasAEnviar().Count()} tolerancia(s), "
+            + $"vigente desde el {_vigenteDesde:dd/MM/yyyy}. Desde esa fecha, toda inspección de este "
+            + "producto se evaluará contra ella, y ya no se podrá modificar una vez que la use un registro.",
+        "descartar" =>
+            $"Se descartará el borrador {sel.Version} con sus tolerancias. No afecta a ninguna inspección.",
+        "retirar" =>
+            $"La versión {sel.Version} volverá a borrador y dejará de aplicar a las inspecciones nuevas "
+            + "hasta que se publique otra vez.",
+        _ => string.Empty
+    };
+
+    /* ---------------- Utilidades de presentación ---------------- */
+
+    /// <summary>
+    /// Campo numérico de la tabla editable. Se lee y se escribe con cultura
+    /// invariante: el navegador entrega los <c>input type="number"</c> con
+    /// punto decimal sin importar el idioma del equipo.
+    /// </summary>
+    private RenderFragment CampoNumero(
+        ToleranciaFicha tol, Func<ToleranciaFicha, decimal?> leer, Action<ToleranciaFicha, decimal?> escribir) =>
+        @<input type="number" step="any" class="tabla-tol__input"
+                disabled="@(!tol.Aplica)"
+                value="@(leer(tol)?.ToString("0.####", CultureInfo.InvariantCulture))"
+                @onchange="e => { escribir(tol, LeerDecimal(e)); _modificado = true; }" />;
+
+    private static decimal? LeerDecimal(ChangeEventArgs e) =>
+        decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var valor)
+            ? valor
+            : null;
+
+    private static string Numero(decimal? valor) =>
+        valor?.ToString("0.####", CultureInfo.InvariantCulture) ?? "—";
+
+    private static string TextoEstado(string estado) => estado switch
+    {
+        EstadosFicha.Borrador => "borrador",
+        EstadosFicha.Programada => "programada",
+        EstadosFicha.Vigente => "vigente",
+        EstadosFicha.Reemplazada => "reemplazada",
+        _ => estado
+    };
+
+    private static int LeerId(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo completar la operación. Intente de nuevo o avise a sistemas."
+    };
+}

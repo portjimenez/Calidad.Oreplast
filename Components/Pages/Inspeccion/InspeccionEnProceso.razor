@@ -208,7 +208,19 @@
                                 </div>
                                 <div class="campo campo--solo-lectura">
                                     <label>Ficha técnica</label>
-                                    <div class="campo-valor">@TextoFicha</div>
+                                    <div class="campo-valor">
+                                        @TextoFicha
+                                        @if (_ficha is not null)
+                                        {
+                                            <AuthorizeView Policy="CONSULTAR_FICHA">
+                                                @* Pestaña nueva: no se abandona el registro que se está capturando. *@
+                                                <a class="enlace-ficha" target="_blank"
+                                                   href="@($"/fichas-tecnicas?producto={_ficha.ProductoId}")">
+                                                    @(_ficha.TieneFicha ? "ver ficha" : "ir a la ficha")
+                                                </a>
+                                            </AuthorizeView>
+                                        }
+                                    </div>
                                 </div>
                                 <div class="campo campo--chip">
                                     <label>Estado</label>

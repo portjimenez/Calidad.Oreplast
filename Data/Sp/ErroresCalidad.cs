@@ -2,7 +2,7 @@ namespace calidad_app.Data.Sp;
 
 /// <summary>
 /// Mensajes de los errores que lanzan los procedimientos del módulo de calidad
-/// (rangos 50100-50166).
+/// (rangos 50100-50189; de 50170 en adelante, las fichas técnicas).
 ///
 /// Van en un catálogo aparte del de inspección por la misma razón por la que
 /// los procedimientos están en carpetas separadas: cada módulo mantiene sus
@@ -75,6 +75,29 @@ internal static class ErroresCalidad
         [50163] = "El lote no tiene bobinas asignadas.",
         [50164] = "El lote tiene no conformidades abiertas: deben resolverse antes de certificar.",
         [50165] = "Debe indicarse el certificado o el lote a consultar.",
-        [50166] = "El certificado indicado no existe."
+        [50166] = "El certificado indicado no existe.",
+
+        // Fichas técnicas (complemento del módulo, db/modulo3_fichas)
+        [50170] = "No tiene autorización para administrar fichas técnicas.",
+        [50171] = "El producto indicado no existe o está inactivo.",
+        [50172] = "La ficha técnica indicada no existe.",
+        [50173] = "El producto ya tiene una versión en borrador. Termínela o descártela antes de abrir otra.",
+        [50175] = "La versión ya está publicada: para cambiarla abra una versión nueva.",
+        [50176] = "La tabla de tolerancias enviada no es válida.",
+        [50177] = "La ficha incluye un parámetro inexistente o retirado del catálogo.",
+        [50178] = "Cada parámetro de la ficha debe tener al menos un límite (inferior o superior).",
+        [50179] = "El límite inferior no puede ser mayor que el superior.",
+        [50180] = "El valor objetivo debe estar dentro de los límites.",
+        [50181] = "La fecha de vigencia es obligatoria.",
+        [50182] = "La fecha de vigencia no puede ser anterior a hoy.",
+        [50183] = "La fecha de vigencia debe ser posterior a la de la última versión publicada.",
+        [50184] = "Ya hay registros de inspección de este producto en esa fecha o después. "
+                + "Elija una fecha posterior al último registro capturado.",
+        [50185] = "No se puede publicar una ficha sin tolerancias.",
+        [50186] = "Esta versión ya la usan registros de inspección y no se puede retirar. "
+                + "Para corregirla, publique una versión nueva.",
+        [50187] = "La versión no está publicada.",
+        [50188] = "Un parámetro aparece más de una vez en la ficha.",
+        [50189] = "Solo se puede eliminar una versión en borrador."
     };
 }

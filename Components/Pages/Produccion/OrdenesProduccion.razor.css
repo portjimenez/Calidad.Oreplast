@@ -197,6 +197,12 @@
     border-radius: 3px;
 }
 
+.expediente__enlace-ficha {
+    margin-left: 0.25rem;
+    color: var(--op-azul);
+    font-weight: 600;
+}
+
 .expediente__contenido {
     overflow-x: auto;
 }
