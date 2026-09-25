@@ -90,11 +90,24 @@
     color: var(--op-texto-secundario);
 }
 
-/* ---- Tabla maestra ---- */
+/* ---- Tabla maestra ----
+   table-layout: fixed con anchos por columna: así la tabla nunca crece más que
+   su panel. Sin esto, el nombre del producto (que no se parte en líneas)
+   empujaba la columna de órdenes debajo del panel de detalle y los números
+   quedaban cortados. */
 .tabla-maestro {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.75rem;
+    table-layout: fixed;
+}
+
+.tabla-maestro__col-ficha {
+    width: 7.5rem;
+}
+
+.tabla-maestro__col-ordenes {
+    width: 5.5rem;
 }
 
 .tabla-maestro thead th {
@@ -105,7 +118,7 @@
     font-size: 0.7rem;
     padding: 0.5rem 0.65rem;
     border-bottom: 1px solid var(--op-borde);
-    white-space: nowrap;
+    vertical-align: bottom;
 }
 
 .tabla-maestro tbody td {
@@ -113,6 +126,7 @@
     color: var(--op-texto);
     border-bottom: 1px solid var(--op-borde-suave);
     vertical-align: top;
+    overflow: hidden;
 }
 
 .tabla-maestro tbody tr {
@@ -155,9 +169,8 @@
 }
 
 /* Los nombres de producto del ERP son largos ("12005529 180MM X 320MM X BOPP…"):
-   una línea recortada, completo en el tooltip. */
+   una línea recortada al ancho que le deje la columna, completo en el tooltip. */
 .tabla-maestro__recorte {
-    max-width: 18rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -484,4 +497,10 @@
         border-left: none;
         border-top: 1px solid var(--op-borde);
     }
+}
+
+/* El encabezado "Órdenes abiertas" se parte en dos líneas dentro de su
+   columna angosta en lugar de salirse de ella. */
+.tabla-maestro thead .tabla-maestro__col-ordenes {
+    white-space: normal;
 }

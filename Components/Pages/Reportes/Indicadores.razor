@@ -1,0 +1,807 @@
+@page "/indicadores"
+@using System.Globalization
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Reportes
+@using calidad_app.Models.Produccion
+@using calidad_app.Services.Reportes
+@using calidad_app.Services.Produccion
+@using calidad_app.Components.Shared
+@attribute [Authorize(Policy = "VER_INDICADORES")]
+@inject IIndicadorService Kpis
+@inject ICatalogoProduccionService Catalogos
+
+<PageTitle>Indicadores</PageTitle>
+
+@* Tablero de indicadores de la planta.
+
+   Aquí no se captura nada: todo lo que se mide lo levantaron los módulos
+   anteriores (inspección, calidad y producción). Esta pantalla solo pone los
+   números uno frente a otro: contra el periodo anterior de igual longitud y
+   contra la meta cuando existe.
+
+   Las cuatro pestañas responden preguntas distintas y en orden: la tendencia
+   dice CUÁNDO cambió, el comparativo DÓNDE, el foco de calidad CÓMO se está
+   respondiendo, y el análisis de causas POR QUÉ. *@
+
+<div class="indicadores">
+    <PanelCard Titulo="Indicadores de calidad y producción">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+
+        <div class="filtros">
+            <label class="filtros__campo">
+                <span>Desde</span>
+                <input type="date" value="@_filtro.FechaDesde.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaDesde = LeerFecha(e, f.FechaDesde))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Hasta</span>
+                <input type="date" value="@_filtro.FechaHasta.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaHasta = LeerFecha(e, f.FechaHasta))" />
+            </label>
+
+            <div class="atajos">
+                @foreach (var (dias, texto) in Atajos)
+                {
+                    <button type="button"
+                            class="atajos__boton @(_filtro.Dias == dias ? "atajos__boton--activo" : null)"
+                            @onclick="() => UltimosDiasAsync(dias)">
+                        @texto
+                    </button>
+                }
+            </div>
+
+            <label class="filtros__campo">
+                <span>Línea</span>
+                <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
+                    <option value="0">Todas</option>
+                    @foreach (var linea in _selectores.Lineas)
+                    {
+                        <option value="@linea.LineaId">@linea.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Máquina</span>
+                <select value="@(_filtro.MaquinaId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.MaquinaId = LeerIdNulo(e))">
+                    <option value="0">Todas</option>
+                    @foreach (var maquina in MaquinasDelAmbito)
+                    {
+                        <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Turno</span>
+                <select value="@(_filtro.TurnoId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.TurnoId = LeerIdNulo(e))">
+                    <option value="0">Todos</option>
+                    @foreach (var turno in _selectores.Turnos)
+                    {
+                        <option value="@turno.TurnoId">@turno.Nombre</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
+                <span>Cliente</span>
+                <select value="@(_filtro.ClienteId ?? 0)"
+                        @onchange="e => CambiarAsync(f => f.ClienteId = LeerIdNulo(e))">
+                    <option value="0">Todos</option>
+                    @foreach (var cliente in _selectores.Clientes)
+                    {
+                        <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
+                    }
+                </select>
+            </label>
+
+            <AuthorizeView Policy="GENERAR_REPORTES">
+                <a class="filtros__enlace" href="@EnlaceReportes">Generar reporte de este periodo</a>
+            </AuthorizeView>
+        </div>
+
+        @if (_cargando && _tablero.Totales.Registros == 0)
+        {
+            <p class="vacio">Midiendo el periodo…</p>
+        }
+        else if (!_tablero.Totales.HayDatos)
+        {
+            <p class="vacio">
+                No hay corridas registradas en ese periodo y ámbito. Amplíe el rango de fechas
+                o quite algún filtro.
+            </p>
+        }
+        else
+        {
+            <div class="kpis">
+                @foreach (var indicador in _tablero.Indicadores)
+                {
+                    <div class="kpi @ClaseKpi(indicador)" title="@indicador.Explicacion">
+                        <span class="kpi__titulo">@indicador.NombreVisible</span>
+                        <span class="kpi__valor">@indicador.ValorTexto</span>
+                        <span class="kpi__variacion kpi__variacion--@indicador.Tendencia.ToString().ToLowerInvariant()">
+                            @Flecha(indicador) @indicador.VariacionTexto
+                        </span>
+                        @if (indicador.TieneMeta)
+                        {
+                            <span class="kpi__meta">
+                                @indicador.MetaTexto
+                                <EstadoChip Texto="@(indicador.CumpleMeta == true ? "Cumple" : "Fuera de meta")"
+                                            Tono="@(indicador.CumpleMeta == true ? TonoChip.Exito : TonoChip.Peligro)" />
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="contexto">
+                <span class="contexto__dato">
+                    <strong>@_tablero.Totales.Registros</strong> corridas en
+                    @_tablero.Totales.Maquinas máquina(s) y @_tablero.Totales.Ordenes orden(es)
+                </span>
+                <span class="contexto__dato">
+                    <strong>@_tablero.Totales.Bobinas</strong> bobinas confirmadas
+                    (@_tablero.Totales.BobinasNoConformes no conformes)
+                </span>
+                <span class="contexto__dato">
+                    <strong>@_tablero.Totales.Mediciones</strong> mediciones contra ficha,
+                    @_tablero.Totales.MedicionesFueraRango fuera de tolerancia
+                </span>
+                <span class="contexto__dato">
+                    Comparado contra @_tablero.Totales.FechaDesdeAnterior.ToString("dd/MM/yyyy")
+                    – @_tablero.Totales.FechaHastaAnterior.ToString("dd/MM/yyyy")
+                    (@_tablero.Totales.RegistrosAnterior corridas)
+                </span>
+            </div>
+
+            <TabStrip Pestanas="_pestanas" PestanaActiva="@_pestana"
+                      PestanaActivaChanged="CambiarPestanaAsync" />
+
+            <div @key="_pestana" class="contenido">
+                @switch (_pestana)
+                {
+                    case "Tendencia":
+                        <div class="subfiltros">
+                            <label class="filtros__campo">
+                                <span>Indicador</span>
+                                <select value="@_metrica" @onchange="CambiarMetricaAsync">
+                                    @foreach (var opcion in Metricas)
+                                    {
+                                        <option value="@opcion.Clave">@opcion.Nombre</option>
+                                    }
+                                </select>
+                            </label>
+
+                            <label class="filtros__campo">
+                                <span>Escala</span>
+                                <select value="@_granularidad" @onchange="CambiarGranularidadAsync">
+                                    @foreach (var opcion in GranularidadTendencia.Opciones)
+                                    {
+                                        <option value="@opcion.Clave">@opcion.Nombre</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+
+                        <GraficaLinea Puntos="PuntosGrafica()"
+                                      Titulo="@TituloGrafica"
+                                      Unidad="@UnidadMetrica"
+                                      Meta="@MetaDeLaMetrica" />
+
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>Periodo</th>
+                                    <th class="tabla__num">Corridas</th>
+                                    <th class="tabla__num">kg producidos</th>
+                                    <th class="tabla__num">% desperdicio</th>
+                                    <th class="tabla__num">% ficha</th>
+                                    <th class="tabla__num">Alertas</th>
+                                    <th class="tabla__num">NC</th>
+                                    <th class="tabla__num">Paro (min)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var punto in _tendencia.Where(p => !p.SinProduccion))
+                                {
+                                    <tr>
+                                        <td class="tabla__principal">@punto.Etiqueta(_granularidad)</td>
+                                        <td class="tabla__num">@punto.Registros</td>
+                                        <td class="tabla__num">@punto.KgProducidos.ToString("N1")</td>
+                                        <td class="tabla__num">@Pct(punto.PorcentajeDesperdicio)</td>
+                                        <td class="tabla__num">@Pct(punto.PorcentajeFichaTecnica)</td>
+                                        <td class="tabla__num">@punto.Alertas</td>
+                                        <td class="tabla__num">@punto.NoConformidades</td>
+                                        <td class="tabla__num">@punto.TiempoMuertoMin</td>
+                                    </tr>
+                                }
+                                @if (_tendencia.All(p => p.SinProduccion))
+                                {
+                                    <tr><td colspan="8" class="tabla__vacio">Sin producción en el periodo.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <p class="pista">
+                            Los periodos sin producción cortan la línea en lugar de dibujarse en cero:
+                            un día que la planta no corrió no es un día de cero desperdicio, es un día
+                            sin dato, y unir los puntos vecinos contaría algo que no pasó.
+                        </p>
+                        break;
+
+                    case "Comparativo":
+                        <div class="subfiltros">
+                            <label class="filtros__campo">
+                                <span>Comparar</span>
+                                <select value="@_agrupar" @onchange="CambiarAgrupacionAsync">
+                                    @foreach (var opcion in AgrupacionIndicadores.Opciones)
+                                    {
+                                        <option value="@opcion.Clave">@opcion.Nombre</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
+
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>@AgrupacionIndicadores.Nombre(_agrupar)</th>
+                                    <th class="tabla__num">Corridas</th>
+                                    <th class="tabla__num">kg producidos</th>
+                                    <th class="tabla__barra">% desperdicio</th>
+                                    <th class="tabla__barra">% dentro de ficha</th>
+                                    <th class="tabla__num">Alertas</th>
+                                    <th class="tabla__num">NC</th>
+                                    <th class="tabla__num">Paro (min)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_comparativo.Count == 0)
+                                {
+                                    <tr><td colspan="8" class="tabla__vacio">Sin datos en este corte.</td></tr>
+                                }
+                                @foreach (var grupo in _comparativo)
+                                {
+                                    <tr>
+                                        <td class="tabla__principal">@grupo.Etiqueta</td>
+                                        <td class="tabla__num">@grupo.Registros</td>
+                                        <td class="tabla__num">@grupo.KgProducidos.ToString("N1")</td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno"
+                                                     style="width: @Ancho(grupo.PorcentajeDesperdicio, _maxDesperdicio)"></div>
+                                                <span class="barra__texto">@Pct(grupo.PorcentajeDesperdicio)</span>
+                                            </div>
+                                        </td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno barra__relleno--bueno"
+                                                     style="width: @Ancho(grupo.PorcentajeFichaTecnica, 100)"></div>
+                                                <span class="barra__texto">@Pct(grupo.PorcentajeFichaTecnica)</span>
+                                            </div>
+                                        </td>
+                                        <td class="tabla__num">@grupo.Alertas</td>
+                                        <td class="tabla__num">@grupo.NoConformidades</td>
+                                        <td class="tabla__num">@grupo.TiempoMuertoMin</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <p class="pista">
+                            Los porcentajes de cada fila se calculan sobre los totales del grupo y no
+                            promediando los de cada corrida: promediarlos le daría el mismo peso a una
+                            corrida de 20 kg que a una de 2000. La barra de desperdicio se escala al
+                            mayor del corte, para que las diferencias se vean.
+                        </p>
+                        break;
+
+                    case "Calidad":
+                        <div class="bloques">
+                            <div class="bloque">
+                                <h3 class="bloque__titulo">Detección y atención de desviaciones</h3>
+                                <div class="cifras">
+                                    <div class="cifra">
+                                        <span class="cifra__valor">@_calidad.Alertas.Total</span>
+                                        <span class="cifra__etiqueta">alertas generadas</span>
+                                    </div>
+                                    <div class="cifra">
+                                        <span class="cifra__valor">@_calidad.Alertas.Pendientes</span>
+                                        <span class="cifra__etiqueta">
+                                            sin atender (@_calidad.Alertas.CriticasPendientes críticas)
+                                        </span>
+                                    </div>
+                                    <div class="cifra">
+                                        <span class="cifra__valor">@Pct(_calidad.Alertas.PorcentajeAtendidas)</span>
+                                        <span class="cifra__etiqueta">atendidas</span>
+                                    </div>
+                                    <div class="cifra">
+                                        <span class="cifra__valor">@Horas(_calidad.Alertas.HorasAtencionPromedio)</span>
+                                        <span class="cifra__etiqueta">
+                                            promedio de atención (máx. @Horas(_calidad.Alertas.HorasAtencionMaxima))
+                                        </span>
+                                    </div>
+                                    <div class="cifra">
+                                        <span class="cifra__valor">@_calidad.Alertas.ConNoConformidad</span>
+                                        <span class="cifra__etiqueta">terminaron en no conformidad</span>
+                                    </div>
+                                </div>
+                                @if (_calidad.Alertas.HorasPendienteMasAntigua is { } espera && espera > 24)
+                                {
+                                    <p class="aviso">
+                                        La alerta sin atender más antigua lleva @Horas(espera) esperando.
+                                    </p>
+                                }
+                            </div>
+
+                            <div class="bloque">
+                                <h3 class="bloque__titulo">No conformidades por severidad</h3>
+                                <table class="tabla">
+                                    <thead>
+                                        <tr>
+                                            <th>Severidad</th>
+                                            <th class="tabla__num">Total</th>
+                                            <th class="tabla__num">Abiertas</th>
+                                            <th class="tabla__num">Cerradas</th>
+                                            <th class="tabla__num">Días para cerrar</th>
+                                            <th class="tabla__num">Días abiertas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (_calidad.PorSeveridad.Count == 0)
+                                        {
+                                            <tr><td colspan="6" class="tabla__vacio">
+                                                No se levantaron no conformidades sobre las corridas del periodo.
+                                            </td></tr>
+                                        }
+                                        @foreach (var severidad in _calidad.PorSeveridad)
+                                        {
+                                            <tr>
+                                                <td class="tabla__principal">@severidad.SeveridadNombre</td>
+                                                <td class="tabla__num">@severidad.Total</td>
+                                                <td class="tabla__num">@severidad.Abiertas</td>
+                                                <td class="tabla__num">@severidad.Cerradas</td>
+                                                <td class="tabla__num">@Dias(severidad.DiasCierrePromedio)</td>
+                                                <td class="tabla__num">@Dias(severidad.DiasAbiertaPromedio)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+
+                                @if (_calidad.PorEstado.Count > 0)
+                                {
+                                    <div class="estados">
+                                        @foreach (var estado in _calidad.PorEstado)
+                                        {
+                                            <span class="estados__item">
+                                                <EstadoChip Texto="@estado.EstadoNombre"
+                                                            Tono="@(estado.EsFinal ? TonoChip.Exito : TonoChip.Advertencia)" />
+                                                <strong>@estado.Total</strong>
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="bloque">
+                                <h3 class="bloque__titulo">Del despeje al certificado</h3>
+                                <div class="embudo">
+                                    @foreach (var paso in PasosDelEmbudo())
+                                    {
+                                        <div class="embudo__paso">
+                                            <span class="embudo__valor">@paso.Valor</span>
+                                            <span class="embudo__etiqueta">@paso.Etiqueta</span>
+                                            <div class="barra">
+                                                <div class="barra__relleno"
+                                                     style="width: @Ancho(paso.Porcentaje, 100)"></div>
+                                                <span class="barra__texto">@Pct(paso.Porcentaje)</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                                @if (_calidad.Embudo.LotesPorCertificar > 0)
+                                {
+                                    <p class="aviso">
+                                        @_calidad.Embudo.LotesPorCertificar lote(s) liberados siguen esperando
+                                        su certificado de calidad.
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                        break;
+
+                    default:
+                        <div class="subfiltros">
+                            <label class="filtros__campo">
+                                <span>Analizar</span>
+                                <select value="@_origen" @onchange="CambiarOrigenAsync">
+                                    @foreach (var opcion in OrigenPareto.Opciones)
+                                    {
+                                        <option value="@opcion.Clave">@opcion.Nombre</option>
+                                    }
+                                </select>
+                            </label>
+                            <span class="subfiltros__pregunta">@OrigenPareto.Pregunta(_origen)</span>
+                        </div>
+
+                        <table class="tabla">
+                            <thead>
+                                <tr>
+                                    <th>Causa</th>
+                                    <th class="tabla__num">Veces</th>
+                                    <th class="tabla__num">Peso</th>
+                                    <th class="tabla__barra">% del total</th>
+                                    <th class="tabla__barra">% acumulado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_causas.Count == 0)
+                                {
+                                    <tr><td colspan="5" class="tabla__vacio">
+                                        No se registraron causas de este tipo en el periodo.
+                                    </td></tr>
+                                }
+                                @foreach (var causa in _causas)
+                                {
+                                    <tr>
+                                        <td class="tabla__principal">
+                                            @causa.Etiqueta
+                                            @if (!string.IsNullOrWhiteSpace(causa.Detalle))
+                                            {
+                                                <span class="tabla__secundario">@causa.Detalle</span>
+                                            }
+                                        </td>
+                                        <td class="tabla__num">@causa.Eventos</td>
+                                        <td class="tabla__num">@causa.ValorTexto</td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno"
+                                                     style="width: @Ancho(causa.Porcentaje, _maxCausa)"></div>
+                                                <span class="barra__texto">@Pct(causa.Porcentaje)</span>
+                                            </div>
+                                        </td>
+                                        <td class="tabla__barra">
+                                            <div class="barra">
+                                                <div class="barra__relleno barra__relleno--acumulado"
+                                                     style="width: @Ancho(causa.PorcentajeAcumulado, 100)"></div>
+                                                <span class="barra__texto">@Pct(causa.PorcentajeAcumulado)</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <p class="pista">
+                            Las causas van de mayor a menor con su acumulado, para ver cuántas hay que
+                            atacar para eliminar el 80 % del problema. El acumulado se calcula sobre
+                            todas las causas del periodo, no solo sobre las que se muestran.
+                        </p>
+                        break;
+                }
+            </div>
+        }
+    </PanelCard>
+</div>
+
+@code {
+    private readonly List<TabItem> _pestanas =
+    [
+        new("Tendencia", "Tendencia"),
+        new("Comparativo", "Comparativo"),
+        new("Calidad", "Foco de calidad"),
+        new("Causas", "Análisis de causas")
+    ];
+
+    /// <summary>Rangos de uso diario: la semana, el mes y el trimestre.</summary>
+    private static readonly (int Dias, string Texto)[] Atajos =
+    [
+        (7, "7 días"),
+        (30, "30 días"),
+        (90, "90 días")
+    ];
+
+    /// <summary>
+    /// Qué serie se grafica. Cada opción dice de dónde sacar el valor del punto
+    /// y con qué unidad se lee, para no repetir el switch en tres lugares.
+    /// </summary>
+    private static readonly (string Clave, string Nombre, string Unidad, Func<PuntoTendencia, decimal?> Valor)[] Metricas =
+    [
+        ("Desperdicio", "% de desperdicio", "%", p => p.PorcentajeDesperdicio),
+        ("Ficha", "% dentro de ficha técnica", "%", p => p.PorcentajeFichaTecnica),
+        ("Conformes", "% de bobinas conformes", "%", p => p.PorcentajeConformes),
+        ("Kg", "Kilos producidos", "kg", p => p.Registros == 0 ? null : p.KgProducidos),
+        ("Alertas", "Alertas generadas", "alertas", p => p.Registros == 0 ? null : p.Alertas),
+        ("Paro", "Minutos de paro", "min", p => p.Registros == 0 ? null : p.TiempoMuertoMin)
+    ];
+
+    private readonly FiltroIndicadores _filtro = new();
+    private SelectoresProduccion _selectores = new();
+
+    private TableroIndicadores _tablero = new();
+    private List<PuntoTendencia> _tendencia = [];
+    private List<GrupoIndicador> _comparativo = [];
+    private ResumenCalidadKpi _calidad = new();
+    private List<CausaPareto> _causas = [];
+
+    private string _pestana = "Tendencia";
+    private string _granularidad = GranularidadTendencia.Dia;
+    private string _metrica = "Desperdicio";
+    private string _agrupar = AgrupacionIndicadores.Maquina;
+    private string _origen = OrigenPareto.Parametro;
+
+    private bool _cargando = true;
+    private string? _error;
+
+    /// <summary>
+    /// Escala de las barras del comparativo: el mayor del corte y no 100, para
+    /// que las diferencias se vean. Si todas las líneas están entre 4 % y 9 %,
+    /// una escala a 100 las dibujaría a todas igual de cortas.
+    /// </summary>
+    private decimal _maxDesperdicio = 1;
+    private decimal _maxCausa = 1;
+
+    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
+        _filtro.LineaId is { } linea ? _selectores.MaquinasDe(linea) : _selectores.Maquinas;
+
+    /// <summary>Lleva al centro de reportes con el mismo periodo ya puesto.</summary>
+    private string EnlaceReportes =>
+        $"/reportes?desde={_filtro.FechaDesde:yyyy-MM-dd}&hasta={_filtro.FechaHasta:yyyy-MM-dd}";
+
+    private string UnidadMetrica =>
+        Metricas.First(m => m.Clave == _metrica).Unidad;
+
+    private string TituloGrafica =>
+        $"{Metricas.First(m => m.Clave == _metrica).Nombre} · {_filtro.DescribirPeriodo()}";
+
+    /// <summary>
+    /// La línea de meta solo se dibuja cuando la serie es el desperdicio y hay
+    /// una meta en porcentaje para el ámbito: es la única de las seis series
+    /// que tiene un valor pactado contra el cual compararse.
+    /// </summary>
+    private decimal? MetaDeLaMetrica
+    {
+        get
+        {
+            if (_metrica != "Desperdicio")
+            {
+                return null;
+            }
+
+            var indicador = _tablero.Indicador(ClavesIndicador.PctDesperdicio);
+            return indicador?.MetaUnidad == "%" ? indicador.ValorMeta : null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _selectores = await Catalogos.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Trae las tarjetas y el contenido de la pestaña abierta. Las otras tres no
+    /// se piden hasta que se abren: son cuatro consultas sobre el mismo periodo
+    /// y lanzarlas todas en cada cambio de filtro multiplicaría el trabajo de la
+    /// base para mostrar una sola tabla.
+    /// </summary>
+    private async Task CargarAsync()
+    {
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            _tablero = await Kpis.TableroAsync(_filtro);
+
+            if (!_tablero.Totales.HayDatos)
+            {
+                _tendencia = [];
+                _comparativo = [];
+                _calidad = new ResumenCalidadKpi();
+                _causas = [];
+                return;
+            }
+
+            await CargarPestanaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private async Task CargarPestanaAsync()
+    {
+        switch (_pestana)
+        {
+            case "Tendencia":
+                _tendencia = await Kpis.TendenciaAsync(_filtro, _granularidad);
+                break;
+
+            case "Comparativo":
+                _comparativo = await Kpis.ComparativoAsync(_filtro, _agrupar);
+                _maxDesperdicio = Escala(_comparativo.Select(g => g.PorcentajeDesperdicio));
+                break;
+
+            case "Calidad":
+                _calidad = await Kpis.CalidadAsync(_filtro);
+                break;
+
+            default:
+                _causas = await Kpis.ParetoAsync(_filtro, _origen);
+                _maxCausa = Escala(_causas.Select(c => c.Porcentaje));
+                break;
+        }
+    }
+
+    private List<GraficaLinea.Punto> PuntosGrafica()
+    {
+        var metrica = Metricas.First(m => m.Clave == _metrica);
+
+        return _tendencia
+            .Select(p => new GraficaLinea.Punto(p.Etiqueta(_granularidad), metrica.Valor(p)))
+            .ToList();
+    }
+
+    private IEnumerable<(string Etiqueta, string Valor, decimal? Porcentaje)> PasosDelEmbudo()
+    {
+        var embudo = _calidad.Embudo;
+        decimal? Sobre(int parte, int total) => total > 0 ? Math.Round(100m * parte / total, 1) : null;
+
+        yield return ("corridas del periodo", embudo.Registros.ToString(), 100m);
+        yield return ("con despeje de línea", embudo.RegistrosConDespeje.ToString(),
+                      Sobre(embudo.RegistrosConDespeje, embudo.Registros));
+        yield return ("con cierre de orden", embudo.RegistrosConCierre.ToString(),
+                      Sobre(embudo.RegistrosConCierre, embudo.Registros));
+        yield return ("lotes liberados", $"{embudo.LotesLiberados} de {embudo.Lotes}",
+                      embudo.PorcentajeLiberados);
+        yield return ("lotes certificados", $"{embudo.LotesCertificados} de {embudo.LotesLiberados}",
+                      embudo.PorcentajeCertificados);
+    }
+
+    /* ---------- Cambios de filtro ---------- */
+
+    private Task CambiarAsync(Action<FiltroIndicadores> cambio)
+    {
+        cambio(_filtro);
+        return CargarAsync();
+    }
+
+    /// <summary>Cambiar de línea invalida la máquina elegida: pertenecía a la anterior.</summary>
+    private Task CambiarLineaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.LineaId = LeerIdNulo(e);
+            f.MaquinaId = null;
+        });
+
+    private Task UltimosDiasAsync(int dias) =>
+        CambiarAsync(f =>
+        {
+            f.FechaHasta = DateOnly.FromDateTime(DateTime.Today);
+            f.FechaDesde = f.FechaHasta.AddDays(-(dias - 1));
+        });
+
+    private async Task CambiarPestanaAsync(string clave)
+    {
+        _pestana = clave;
+        _cargando = true;
+        _error = null;
+
+        try
+        {
+            await CargarPestanaAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    private Task CambiarGranularidadAsync(ChangeEventArgs e)
+    {
+        _granularidad = e.Value?.ToString() ?? GranularidadTendencia.Dia;
+        return CambiarPestanaAsync(_pestana);
+    }
+
+    private void CambiarMetricaAsync(ChangeEventArgs e) =>
+        _metrica = e.Value?.ToString() ?? "Desperdicio";
+
+    private Task CambiarAgrupacionAsync(ChangeEventArgs e)
+    {
+        _agrupar = e.Value?.ToString() ?? AgrupacionIndicadores.Maquina;
+        return CambiarPestanaAsync(_pestana);
+    }
+
+    private Task CambiarOrigenAsync(ChangeEventArgs e)
+    {
+        _origen = e.Value?.ToString() ?? OrigenPareto.Parametro;
+        return CambiarPestanaAsync(_pestana);
+    }
+
+    /* ---------- Formato ---------- */
+
+    private static decimal Escala(IEnumerable<decimal?> valores)
+    {
+        var maximo = valores.Select(v => v ?? 0).DefaultIfEmpty(1).Max();
+        return maximo > 0 ? maximo : 1;
+    }
+
+    /// <summary>
+    /// Cuánto de la barra se pinta. Se escribe con cultura invariante porque un
+    /// separador decimal con coma rompería el valor CSS.
+    /// </summary>
+    private static string Ancho(decimal? valor, decimal maximo)
+    {
+        if (valor is null || maximo <= 0)
+        {
+            return "0%";
+        }
+
+        var proporcion = Math.Clamp(valor.Value / maximo * 100m, 0m, 100m);
+        return proporcion.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
+
+    private static string ClaseKpi(IndicadorKpi indicador) => indicador.CumpleMeta switch
+    {
+        true => "kpi--cumple",
+        false => "kpi--incumple",
+        _ => indicador.Tendencia switch
+        {
+            TendenciaIndicador.Mejora => "kpi--mejora",
+            TendenciaIndicador.Empeora => "kpi--empeora",
+            _ => "kpi--neutro"
+        }
+    };
+
+    private static string Flecha(IndicadorKpi indicador) => indicador.Variacion switch
+    {
+        null or 0 => "=",
+        > 0 => "▲",
+        _ => "▼"
+    };
+
+    private static string Pct(decimal? valor) =>
+        valor is null ? "—" : $"{valor.Value.ToString("0.#")} %";
+
+    private static string Horas(decimal? valor) =>
+        valor is null ? "—" : $"{valor.Value.ToString("0.#")} h";
+
+    private static string Dias(decimal? valor) =>
+        valor is null ? "—" : $"{valor.Value.ToString("0.#")}";
+
+    private static DateOnly LeerFecha(ChangeEventArgs e, DateOnly actual) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : actual;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudieron calcular los indicadores. Intente de nuevo o avise a sistemas."
+    };
+}

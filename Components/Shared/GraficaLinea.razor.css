@@ -1,0 +1,99 @@
+/* Gráfica de línea en SVG.
+
+   El viewBox mide 100 x 32 unidades y el contenedor fija esa misma proporción,
+   de modo que el dibujo se escala sin deformarse. Los grosores de línea llevan
+   vector-effect en el marcado para no engordar con la escala. Los rótulos son
+   HTML alrededor del SVG: conservan el tipo de letra de la aplicación y no se
+   deforman con el escalado. */
+
+.grafica {
+    margin: 0;
+    padding: 0.6rem 0.65rem 0.2rem;
+}
+
+.grafica__cuerpo {
+    display: flex;
+    gap: 0.35rem;
+}
+
+/* Eje vertical: los cuatro niveles de la rejilla, de mayor a menor. */
+.grafica__eje-y {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    width: 2.5rem;
+    padding: 0.05rem 0;
+    font-size: 0.6rem;
+    color: var(--op-texto-secundario);
+}
+
+.grafica__svg {
+    display: block;
+    flex: 1 1 auto;
+    aspect-ratio: 100 / 32;
+    overflow: visible;
+}
+
+.grafica__rejilla {
+    stroke: var(--op-borde);
+    stroke-width: 1;
+}
+
+.grafica__linea {
+    stroke: var(--op-azul);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.grafica__punto {
+    fill: var(--op-azul);
+}
+
+/* La meta va punteada y en otro color: es una referencia, no un dato medido. */
+.grafica__meta {
+    stroke: var(--op-advertencia-fg);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.grafica__etiquetas {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.15rem;
+    margin-left: 2.85rem;
+    margin-top: 0.15rem;
+}
+
+.grafica__etiqueta {
+    flex: 1 1 0;
+    font-size: 0.6rem;
+    color: var(--op-texto-secundario);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.grafica__etiqueta--oculta {
+    visibility: hidden;
+}
+
+.grafica__pie {
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+    text-align: center;
+}
+
+.grafica__meta-leyenda {
+    color: var(--op-advertencia-fg);
+}
+
+.grafica__vacio {
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}

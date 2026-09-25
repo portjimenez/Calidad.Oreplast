@@ -1,0 +1,424 @@
+/* Estilos del tablero de indicadores.
+
+   La pantalla es de lectura y ocupa todo el ancho: arriba las tarjetas con el
+   estado de cada indicador, debajo el contexto que las explica y luego la
+   pestaña que responda la pregunta que se esté haciendo. Comparte el
+   vocabulario visual de las demás pantallas analíticas del proyecto (filtros,
+   tabla, barra, pista), repetido aquí porque el CSS de cada componente está
+   aislado. */
+
+.indicadores {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Filtros ---- */
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.filtros__campo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+}
+
+.filtros__campo > span {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.filtros__campo input,
+.filtros__campo select {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.35rem;
+    max-width: 14rem;
+}
+
+.filtros__enlace {
+    margin-left: auto;
+    align-self: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--op-azul);
+    text-decoration: none;
+}
+
+.filtros__enlace:hover {
+    text-decoration: underline;
+}
+
+/* Atajos de periodo: la semana, el mes y el trimestre son el 90 % de las
+   consultas y no deberían costar dos calendarios. */
+.atajos {
+    display: flex;
+    gap: 0.2rem;
+    padding-bottom: 0.1rem;
+}
+
+.atajos__boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto-secundario);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.45rem;
+    cursor: pointer;
+}
+
+.atajos__boton:hover {
+    border-color: var(--op-azul);
+    color: var(--op-azul);
+}
+
+.atajos__boton--activo {
+    background: var(--op-seleccion);
+    border-color: var(--op-azul);
+    color: var(--op-azul);
+    font-weight: 600;
+}
+
+/* ---- Tarjetas de indicador ----
+   El color va en la franja lateral y no en el fondo entero: once tarjetas con
+   fondo de color compiten entre sí y ninguna destaca. */
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+    gap: 0.5rem;
+    padding: 0.65rem;
+}
+
+.kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--op-borde);
+    border-left: 3px solid var(--op-neutro-fg);
+    border-radius: 3px;
+    background: #fff;
+}
+
+.kpi--cumple {
+    border-left-color: var(--op-exito-fg);
+}
+
+.kpi--incumple {
+    border-left-color: var(--op-peligro-fg);
+}
+
+.kpi--mejora {
+    border-left-color: var(--op-exito-fg);
+    opacity: 1;
+}
+
+.kpi--empeora {
+    border-left-color: var(--op-advertencia-fg);
+}
+
+.kpi--neutro {
+    border-left-color: var(--op-borde);
+}
+
+.kpi__titulo {
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.kpi__valor {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    line-height: 1.15;
+}
+
+.kpi--incumple .kpi__valor {
+    color: var(--op-peligro-fg);
+}
+
+.kpi__variacion {
+    font-size: 0.65rem;
+    color: var(--op-texto-secundario);
+}
+
+.kpi__variacion--mejora {
+    color: var(--op-exito-fg);
+}
+
+.kpi__variacion--empeora {
+    color: var(--op-peligro-fg);
+}
+
+.kpi__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+    font-size: 0.64rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Contexto del periodo ---- */
+.contexto {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--op-info-bg);
+    border-top: 1px solid var(--op-borde-suave);
+    border-bottom: 1px solid var(--op-borde-suave);
+    font-size: 0.68rem;
+    color: var(--op-texto-secundario);
+}
+
+.contexto__dato strong {
+    color: var(--op-info-fg);
+    font-size: 0.8rem;
+}
+
+/* ---- Contenido de las pestañas ---- */
+.contenido {
+    overflow-x: auto;
+}
+
+.subfiltros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.6rem;
+    padding: 0.5rem 0.65rem 0;
+}
+
+.subfiltros__pregunta {
+    padding-bottom: 0.25rem;
+    font-size: 0.7rem;
+    font-style: italic;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Bloques del foco de calidad ---- */
+.bloques {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.35rem;
+}
+
+.bloque {
+    padding: 0.35rem 0 0.5rem;
+    border-bottom: 1px solid var(--op-borde-suave);
+}
+
+.bloque__titulo {
+    margin: 0;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.cifras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    padding: 0.35rem 0.65rem 0.5rem;
+}
+
+.cifra {
+    display: flex;
+    flex-direction: column;
+}
+
+.cifra__valor {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    line-height: 1.15;
+}
+
+.cifra__etiqueta {
+    font-size: 0.66rem;
+    color: var(--op-texto-secundario);
+}
+
+.estados {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.5rem 0.65rem 0;
+}
+
+.estados__item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.72rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Embudo de liberación ---- */
+.embudo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.35rem 0.65rem 0.2rem;
+}
+
+.embudo__paso {
+    display: grid;
+    grid-template-columns: 6rem 12rem 1fr;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.embudo__valor {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--op-texto);
+    text-align: right;
+}
+
+.embudo__etiqueta {
+    font-size: 0.7rem;
+    color: var(--op-texto-secundario);
+}
+
+/* ---- Tablas ---- */
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.74rem;
+}
+
+.tabla thead th {
+    text-align: left;
+    background: var(--op-fondo);
+    color: var(--op-texto-secundario);
+    font-weight: 600;
+    font-size: 0.68rem;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--op-borde);
+    white-space: nowrap;
+}
+
+.tabla tbody td {
+    padding: 0.45rem 0.6rem;
+    color: var(--op-texto);
+    border-bottom: 1px solid var(--op-borde-suave);
+    vertical-align: top;
+}
+
+.tabla tbody tr:nth-child(even) {
+    background: var(--op-fila-alt);
+}
+
+.tabla__num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.tabla__barra {
+    width: 11rem;
+    min-width: 8rem;
+}
+
+.tabla__principal {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.tabla__secundario {
+    display: block;
+    font-size: 0.66rem;
+    font-weight: 400;
+    color: var(--op-texto-secundario);
+}
+
+.tabla__vacio {
+    text-align: center;
+    color: var(--op-texto-secundario);
+    font-style: italic;
+}
+
+/* ---- Barras ---- */
+.barra {
+    position: relative;
+    height: 1.1rem;
+    background: var(--op-neutro-bg);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.barra__relleno {
+    height: 100%;
+    background: var(--op-azul);
+    opacity: 0.35;
+}
+
+.barra__relleno--bueno {
+    background: var(--op-exito-fg);
+    opacity: 0.3;
+}
+
+.barra__relleno--acumulado {
+    background: var(--op-advertencia-fg);
+    opacity: 0.3;
+}
+
+.barra__texto {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+/* ---- Textos ---- */
+.pista {
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.7rem;
+    line-height: 1.45;
+    color: var(--op-texto-secundario);
+}
+
+.aviso {
+    margin: 0;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.7rem;
+    color: var(--op-advertencia-fg);
+}
+
+.vacio {
+    margin: 0;
+    padding: 2rem 0.65rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--op-texto-secundario);
+}
+
+.ficha__error {
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.75rem;
+    background: var(--op-peligro-bg);
+    color: var(--op-peligro-fg);
+    border-bottom: 1px solid var(--op-peligro-fg);
+}

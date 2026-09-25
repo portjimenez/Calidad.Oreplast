@@ -1,0 +1,448 @@
+@page "/reportes"
+@using calidad_app.Data.Sp
+@using calidad_app.Models.Reportes
+@using calidad_app.Models.Produccion
+@using calidad_app.Services.Reportes
+@using calidad_app.Services.Produccion
+@using calidad_app.Components.Shared
+@implements IAsyncDisposable
+@attribute [Authorize(Policy = "GENERAR_REPORTES")]
+@inject IReporteService Reportes
+@inject ICatalogoProduccionService Catalogos
+@inject IJSRuntime JS
+
+<PageTitle>Reportes</PageTitle>
+
+@* Centro de reportes.
+
+   Se separa del tablero porque responde a otro permiso y a otra necesidad: el
+   tablero se mira, el reporte se entrega. Aquí los datos SALEN de la
+   aplicación en un archivo, así que el permiso GENERAR_REPORTES se valida
+   también en la base y cada descarga queda en la bitácora con quién la pidió y
+   con qué filtros.
+
+   La vista previa y los dos archivos salen de la misma consulta: lo que se ve
+   en pantalla es exactamente lo que se va a descargar. *@
+
+<div class="reportes">
+    <PanelCard Titulo="Generar reportes">
+        @if (_error is not null)
+        {
+            <p class="ficha__error" role="alert">@_error</p>
+        }
+
+        <div class="catalogo">
+            @foreach (var definicion in ClavesReporte.Catalogo)
+            {
+                <button type="button"
+                        class="catalogo__item @(definicion.Clave == _reporte ? "catalogo__item--activo" : null)"
+                        @onclick="() => CambiarReporteAsync(definicion.Clave)">
+                    <span class="catalogo__nombre">@definicion.Nombre</span>
+                    <span class="catalogo__descripcion">@definicion.Descripcion</span>
+                </button>
+            }
+        </div>
+
+        <div class="filtros">
+            <label class="filtros__campo">
+                <span>Desde</span>
+                <input type="date" value="@_filtro.FechaDesde.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaDesde = LeerFecha(e, f.FechaDesde))" />
+            </label>
+
+            <label class="filtros__campo">
+                <span>Hasta</span>
+                <input type="date" value="@_filtro.FechaHasta.ToString("yyyy-MM-dd")"
+                       @onchange="e => CambiarAsync(f => f.FechaHasta = LeerFecha(e, f.FechaHasta))" />
+            </label>
+
+            @if (_reporte != ClavesReporte.Lotes)
+            {
+                <label class="filtros__campo">
+                    <span>Línea</span>
+                    <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
+                        <option value="0">Todas</option>
+                        @foreach (var linea in _selectores.Lineas)
+                        {
+                            <option value="@linea.LineaId">@linea.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Máquina</span>
+                    <select value="@(_filtro.MaquinaId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.MaquinaId = LeerIdNulo(e))">
+                        <option value="0">Todas</option>
+                        @foreach (var maquina in MaquinasDelAmbito)
+                        {
+                            <option value="@maquina.MaquinaId">@maquina.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Turno</span>
+                    <select value="@(_filtro.TurnoId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.TurnoId = LeerIdNulo(e))">
+                        <option value="0">Todos</option>
+                        @foreach (var turno in _selectores.Turnos)
+                        {
+                            <option value="@turno.TurnoId">@turno.Nombre</option>
+                        }
+                    </select>
+                </label>
+            }
+
+            @if (_reporte is ClavesReporte.Produccion or ClavesReporte.NoConformidades or ClavesReporte.Lotes)
+            {
+                <label class="filtros__campo">
+                    <span>Cliente</span>
+                    <select value="@(_filtro.ClienteId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.ClienteId = LeerIdNulo(e))">
+                        <option value="0">Todos</option>
+                        @foreach (var cliente in _selectores.Clientes)
+                        {
+                            <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+            }
+
+            @switch (_reporte)
+            {
+                case ClavesReporte.NoConformidades:
+                    <label class="filtros__check">
+                        <input type="checkbox" checked="@_filtro.SoloAbiertas"
+                               @onchange="e => CambiarAsync(f => f.SoloAbiertas = Marcado(e))" />
+                        Solo las que siguen abiertas
+                    </label>
+                    break;
+
+                case ClavesReporte.Alertas:
+                    <label class="filtros__check">
+                        <input type="checkbox" checked="@_filtro.SoloPendientes"
+                               @onchange="e => CambiarAsync(f => f.SoloPendientes = Marcado(e))" />
+                        Solo las no atendidas
+                    </label>
+                    <label class="filtros__check">
+                        <input type="checkbox" checked="@_filtro.SoloCriticas"
+                               @onchange="e => CambiarAsync(f => f.SoloCriticas = Marcado(e))" />
+                        Solo parámetros críticos
+                    </label>
+                    break;
+
+                case ClavesReporte.Lotes:
+                    <label class="filtros__campo">
+                        <span>Estado</span>
+                        <select value="@(_filtro.EstadoLote ?? string.Empty)"
+                                @onchange="e => CambiarAsync(f => f.EstadoLote = LeerTextoNulo(e))">
+                            <option value="">Todos</option>
+                            <option value="EnProceso">En proceso</option>
+                            <option value="Liberado">Liberado</option>
+                            <option value="Cerrado">Cerrado</option>
+                        </select>
+                    </label>
+                    <label class="filtros__check">
+                        <input type="checkbox" checked="@_filtro.SoloSinCertificado"
+                               @onchange="e => CambiarAsync(f => f.SoloSinCertificado = Marcado(e))" />
+                        Solo los que no tienen certificado
+                    </label>
+                    break;
+            }
+
+            <div class="descargas">
+                <button type="button" class="boton boton--excel"
+                        disabled="@(_ocupado || _tabla.Filas.Count == 0)"
+                        @onclick="() => DescargarAsync(FormatoArchivo.Excel)">
+                    Descargar Excel
+                </button>
+                <button type="button" class="boton boton--pdf"
+                        disabled="@(_ocupado || _tabla.Filas.Count == 0)"
+                        @onclick="() => DescargarAsync(FormatoArchivo.Pdf)">
+                    Descargar PDF
+                </button>
+            </div>
+        </div>
+
+        @if (_aviso is not null)
+        {
+            <p class="aviso" role="status">@_aviso</p>
+        }
+
+        @if (_cargando)
+        {
+            <p class="vacio">Consultando el reporte…</p>
+        }
+        else if (_tabla.Filas.Count == 0)
+        {
+            <p class="vacio">
+                El reporte no devolvió filas con esos filtros. Amplíe el periodo o quite algún
+                filtro.
+            </p>
+        }
+        else
+        {
+            <p class="resumen">
+                @_tabla.Subtitulo
+                @if (_tabla.Nota is not null)
+                {
+                    <span class="resumen__nota">@_tabla.Nota</span>
+                }
+            </p>
+
+            <div class="contenido">
+                <table class="tabla">
+                    <thead>
+                        <tr>
+                            @foreach (var columna in _tabla.Columnas)
+                            {
+                                <th class="@(FormatoCelda.AlineadaDerecha(columna.Tipo) ? "tabla__num" : null)">
+                                    @columna.Titulo
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fila in _tabla.Filas.Take(MaxVistaPrevia))
+                        {
+                            <tr>
+                                @for (var c = 0; c < _tabla.Columnas.Count && c < fila.Length; c++)
+                                {
+                                    var columna = _tabla.Columnas[c];
+                                    <td class="@(FormatoCelda.AlineadaDerecha(columna.Tipo) ? "tabla__num" : null)">
+                                        @FormatoCelda.Texto(fila[c], columna.Tipo)
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_tabla.Filas.Count > MaxVistaPrevia)
+            {
+                <p class="pista">
+                    En pantalla se muestran las primeras @MaxVistaPrevia de @_tabla.Filas.Count.ToString("N0")
+                    filas; el archivo que se descargue las trae todas.
+                </p>
+            }
+        }
+    </PanelCard>
+</div>
+
+@code {
+    /// <summary>
+    /// Filas que se dibujan en la vista previa. El archivo se lleva todas; en
+    /// pantalla, unos pocos miles de filas dentro de un circuito de SignalR
+    /// solo sirven para hacerlo lento, y para revisar que el reporte es el que
+    /// se quería bastan las primeras.
+    /// </summary>
+    private const int MaxVistaPrevia = 100;
+
+    [SupplyParameterFromQuery(Name = "desde")] public string? DesdeQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "hasta")] public string? HastaQuery { get; set; }
+
+    private readonly FiltroReporte _filtro = new();
+    private SelectoresProduccion _selectores = new();
+
+    private string _reporte = ClavesReporte.Produccion;
+    private TablaReporte _tabla = new();
+
+    private bool _cargando = true;
+    private bool _ocupado;
+    private string? _error;
+    private string? _aviso;
+
+    private IJSObjectReference? _descargas;
+
+    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
+        _filtro.LineaId is { } linea ? _selectores.MaquinasDe(linea) : _selectores.Maquinas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // El tablero enlaza aquí con su mismo periodo: el reporte es la
+        // continuación natural de lo que se acaba de ver en los indicadores.
+        if (DateOnly.TryParse(DesdeQuery, out var desde))
+        {
+            _filtro.FechaDesde = desde;
+        }
+
+        if (DateOnly.TryParse(HastaQuery, out var hasta))
+        {
+            _filtro.FechaHasta = hasta;
+        }
+
+        try
+        {
+            _selectores = await Catalogos.ObtenerSelectoresAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+
+        await ConsultarAsync();
+    }
+
+    private async Task ConsultarAsync()
+    {
+        _cargando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            _tabla = await Reportes.ConsultarAsync(_reporte, _filtro, DescribirAmbito());
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+            _tabla = new TablaReporte();
+        }
+        finally
+        {
+            _cargando = false;
+        }
+    }
+
+    /// <summary>
+    /// La descarga sale del circuito y no de un endpoint HTTP para que el
+    /// procedimiento pueda registrar en la bitácora quién generó el archivo:
+    /// dentro del componente la identidad del usuario ya está resuelta y no
+    /// puede falsearse desde el navegador.
+    /// </summary>
+    private async Task DescargarAsync(FormatoArchivo formato)
+    {
+        _ocupado = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var archivo = await Reportes.ExportarAsync(_reporte, _filtro, formato, DescribirAmbito());
+
+            _descargas ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descargas.js");
+
+            using var contenido = new MemoryStream(archivo.Contenido);
+            using var referencia = new DotNetStreamReference(contenido);
+
+            await _descargas.InvokeVoidAsync("descargarArchivo", archivo.NombreArchivo, referencia);
+
+            _aviso = $"Se generó {archivo.NombreArchivo}. La descarga quedó registrada en la bitácora.";
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    /// <summary>
+    /// Los filtros aplicados, en una línea. Los arma la pantalla porque es la
+    /// que tiene los catálogos cargados; van al encabezado del archivo y a la
+    /// bitácora, y son lo que permite reconstruir después qué se llevó.
+    /// </summary>
+    private string? DescribirAmbito()
+    {
+        var partes = new List<string>();
+
+        if (_filtro.LineaId is { } lineaId)
+        {
+            var linea = _selectores.Lineas.FirstOrDefault(l => l.LineaId == lineaId);
+            partes.Add($"Línea {linea?.Codigo ?? lineaId.ToString()}");
+        }
+
+        if (_filtro.MaquinaId is { } maquinaId)
+        {
+            var maquina = _selectores.Maquinas.FirstOrDefault(m => m.MaquinaId == maquinaId);
+            partes.Add($"Máquina {maquina?.Codigo ?? maquinaId.ToString()}");
+        }
+
+        if (_filtro.TurnoId is { } turnoId)
+        {
+            var turno = _selectores.Turnos.FirstOrDefault(t => t.TurnoId == turnoId);
+            partes.Add($"Turno {turno?.Nombre ?? turnoId.ToString()}");
+        }
+
+        if (_filtro.ClienteId is { } clienteId)
+        {
+            var cliente = _selectores.Clientes.FirstOrDefault(c => c.ClienteId == clienteId);
+            partes.Add($"Cliente {cliente?.Nombre ?? clienteId.ToString()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_filtro.EstadoLote))
+        {
+            partes.Add($"Lotes en estado {_filtro.EstadoLote}");
+        }
+
+        if (_filtro.SoloAbiertas) partes.Add("solo abiertas");
+        if (_filtro.SoloPendientes) partes.Add("solo no atendidas");
+        if (_filtro.SoloCriticas) partes.Add("solo críticas");
+        if (_filtro.SoloSinCertificado) partes.Add("solo sin certificado");
+
+        return partes.Count == 0 ? "Toda la planta" : string.Join(", ", partes);
+    }
+
+    private Task CambiarReporteAsync(string clave)
+    {
+        if (clave == _reporte)
+        {
+            return Task.CompletedTask;
+        }
+
+        _reporte = clave;
+        return ConsultarAsync();
+    }
+
+    private Task CambiarAsync(Action<FiltroReporte> cambio)
+    {
+        cambio(_filtro);
+        return ConsultarAsync();
+    }
+
+    private Task CambiarLineaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.LineaId = LeerIdNulo(e);
+            f.MaquinaId = null;
+        });
+
+    private static bool Marcado(ChangeEventArgs e) => e.Value is bool valor && valor;
+
+    private static DateOnly LeerFecha(ChangeEventArgs e, DateOnly actual) =>
+        DateOnly.TryParse(e.Value?.ToString(), out var fecha) ? fecha : actual;
+
+    private static int? LeerIdNulo(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var id) && id > 0 ? id : null;
+
+    private static string? LeerTextoNulo(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString();
+        return string.IsNullOrWhiteSpace(texto) ? null : texto;
+    }
+
+    private static string Traducir(Exception ex) => ex switch
+    {
+        ReglaNegocioException regla => regla.Message,
+        _ => "No se pudo generar el reporte. Intente de nuevo o avise a sistemas."
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_descargas is not null)
+        {
+            try
+            {
+                await _descargas.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // El circuito ya se cerró: no hay módulo que liberar.
+            }
+        }
+    }
+}

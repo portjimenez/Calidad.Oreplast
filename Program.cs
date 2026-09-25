@@ -6,6 +6,7 @@ using calidad_app.Services.Calidad;
 using calidad_app.Services.Catalogos;
 using calidad_app.Services.Inspeccion;
 using calidad_app.Services.Produccion;
+using calidad_app.Services.Reportes;
 using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
@@ -76,6 +77,15 @@ builder.Services.AddScoped<ICatalogoAdministracionService, CatalogoAdministracio
 builder.Services.AddScoped<IUsuarioService, UsuarioService>();
 builder.Services.AddScoped<IRolService, RolService>();
 builder.Services.AddScoped<IBitacoraService, BitacoraService>();
+
+// Módulo 7 - Reportería e indicadores. Solo lectura: el tablero mide lo que capturaron los
+// módulos anteriores. Van en dos servicios porque responden a permisos distintos: el tablero
+// se consulta con VER_INDICADORES y los reportes se generan con GENERAR_REPORTES, que además
+// se valida en la base porque esos datos salen de la aplicación en un archivo. El exportador
+// es singleton: no guarda estado, solo convierte una tabla en Excel o PDF.
+builder.Services.AddSingleton<ExportadorArchivos>();
+builder.Services.AddScoped<IIndicadorService, IndicadorService>();
+builder.Services.AddScoped<IReporteService, ReporteService>();
 
 // Enriquece HttpContext.User contra seg.Usuario justo después de autenticar (Negotiate o
 // "Simulacion"), para que AuthorizeRouteView/FallbackPolicy vean la decisión real ya en la

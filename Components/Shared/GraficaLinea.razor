@@ -1,0 +1,198 @@
+@using System.Globalization
+
+@*
+    Gráfica de línea dibujada como SVG en el servidor.
+
+    Se hace con SVG y no con una librería de JavaScript por dos razones: el
+    resto de la aplicación ya dibuja sus barras con CSS puro (ver el control de
+    desperdicio del módulo 5), y en Blazor Server una gráfica que vive en el
+    navegador obliga a mandar los datos por JS interop y a redibujarla en cada
+    cambio de filtro. Así el gráfico es parte del HTML que ya se está enviando.
+
+    Los valores nulos CORTAN la línea en lugar de dibujarse en cero: en la
+    tendencia, un periodo sin producción no es un cero, es un dato que no
+    existe, y unir los dos puntos vecinos con una recta contaría una historia
+    falsa.
+
+    Los rótulos (eje vertical y etiquetas de periodo) son HTML y no elementos
+    <text> del SVG: Razor reserva esa etiqueta para su propia sintaxis, y
+    además así conservan el tipo de letra de la aplicación y se recortan sin
+    deformarse.
+*@
+
+<figure class="grafica">
+    @if (_puntos.Count == 0 || _maximo <= 0)
+    {
+        <figcaption class="grafica__vacio">Sin datos para graficar en este periodo.</figcaption>
+    }
+    else
+    {
+        <div class="grafica__cuerpo">
+            <div class="grafica__eje-y">
+                @foreach (var nivel in Niveles.Reverse())
+                {
+                    <span class="grafica__eje-valor">@nivel.ToString("0.#")</span>
+                }
+            </div>
+
+            <svg class="grafica__svg" viewBox="0 0 @Ancho @Alto" role="img" aria-label="@Titulo">
+                @* Rejilla horizontal: cuatro líneas de referencia *@
+                @foreach (var nivel in Niveles)
+                {
+                    <line class="grafica__rejilla" vector-effect="non-scaling-stroke"
+                          x1="0" y1="@Num(Y(nivel))" x2="@Num(Ancho)" y2="@Num(Y(nivel))" />
+                }
+
+                @if (MetaVisible is { } meta)
+                {
+                    <line class="grafica__meta" vector-effect="non-scaling-stroke"
+                          x1="0" y1="@Num(Y(meta))" x2="@Num(Ancho)" y2="@Num(Y(meta))" />
+                }
+
+                @* Un trazo por tramo continuo: los cortes son los periodos sin dato *@
+                @foreach (var tramo in Tramos())
+                {
+                    <polyline class="grafica__linea" vector-effect="non-scaling-stroke"
+                              fill="none" points="@tramo" />
+                }
+
+                @foreach (var (punto, indice) in _puntos.Select((p, i) => (p, i)))
+                {
+                    @if (punto.Valor is { } valor)
+                    {
+                        <circle class="grafica__punto" cx="@Num(X(indice))" cy="@Num(Y(valor))" r="0.7">
+                            <title>@punto.Etiqueta: @valor.ToString("0.##") @Unidad</title>
+                        </circle>
+                    }
+                }
+            </svg>
+        </div>
+
+        <div class="grafica__etiquetas">
+            @foreach (var (punto, indice) in _puntos.Select((p, i) => (p, i)))
+            {
+                <span class="grafica__etiqueta @(MostrarEtiqueta(indice) ? null : "grafica__etiqueta--oculta")">
+                    @punto.Etiqueta
+                </span>
+            }
+        </div>
+
+        <figcaption class="grafica__pie">
+            @Titulo
+            @if (MetaVisible is { } metaPie)
+            {
+                <span class="grafica__meta-leyenda">
+                    · la línea punteada es la meta (@metaPie.ToString("0.#") @Unidad)
+                </span>
+            }
+        </figcaption>
+    }
+</figure>
+
+@code {
+    /// <summary>Un punto de la serie. Valor nulo significa "no hay dato", y corta la línea.</summary>
+    public record Punto(string Etiqueta, decimal? Valor);
+
+    [Parameter, EditorRequired] public IReadOnlyList<Punto> Puntos { get; set; } = [];
+
+    /// <summary>Qué se está graficando; va al pie y a la etiqueta accesible.</summary>
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+
+    [Parameter] public string Unidad { get; set; } = string.Empty;
+
+    /// <summary>Línea de referencia opcional (la meta del ámbito, cuando existe).</summary>
+    [Parameter] public decimal? Meta { get; set; }
+
+    private const decimal Ancho = 100;
+    private const decimal Alto = 32;
+    private const decimal MargenArriba = 2;
+    private const decimal MargenAbajo = 2;
+
+    private List<Punto> _puntos = [];
+    private decimal _maximo;
+
+    protected override void OnParametersSet()
+    {
+        _puntos = Puntos.ToList();
+
+        // La escala arranca en cero (un porcentaje o unos kilos se leen contra
+        // cero) y se estira un 10 % sobre el máximo para que el punto más alto
+        // no quede pegado al borde. La meta también entra en la escala: de otro
+        // modo una meta alta quedaría fuera del dibujo.
+        var mayor = _puntos.Select(p => p.Valor ?? 0).DefaultIfEmpty(0).Max();
+
+        if (Meta is { } meta && meta > mayor)
+        {
+            mayor = meta;
+        }
+
+        _maximo = mayor > 0 ? mayor * 1.1m : 0;
+    }
+
+    private decimal? MetaVisible =>
+        Meta is { } meta && meta > 0 && meta <= _maximo ? meta : null;
+
+    private IEnumerable<decimal> Niveles =>
+        _maximo <= 0 ? [] : new[] { 0m, _maximo / 3, _maximo * 2 / 3, _maximo };
+
+    private decimal X(int indice) => _puntos.Count <= 1
+        ? Ancho / 2
+        : Ancho * indice / (_puntos.Count - 1);
+
+    private decimal Y(decimal valor) => _maximo <= 0
+        ? Alto - MargenAbajo
+        : Alto - MargenAbajo - (Alto - MargenArriba - MargenAbajo) * valor / _maximo;
+
+    /// <summary>
+    /// Divide la serie en tramos continuos. Cada corte es un periodo sin dato.
+    /// Un tramo de un solo punto no se dibuja como línea (para eso está el
+    /// círculo del punto).
+    /// </summary>
+    private IEnumerable<string> Tramos()
+    {
+        var actual = new List<string>();
+
+        for (var i = 0; i < _puntos.Count; i++)
+        {
+            if (_puntos[i].Valor is { } valor)
+            {
+                actual.Add($"{Num(X(i))},{Num(Y(valor))}");
+                continue;
+            }
+
+            if (actual.Count > 1)
+            {
+                yield return string.Join(' ', actual);
+            }
+
+            actual.Clear();
+        }
+
+        if (actual.Count > 1)
+        {
+            yield return string.Join(' ', actual);
+        }
+    }
+
+    /// <summary>
+    /// Con sesenta días no caben sesenta etiquetas: se muestran las suficientes
+    /// para ubicarse (la primera, la última y una cada tantas).
+    /// </summary>
+    private bool MostrarEtiqueta(int indice)
+    {
+        if (_puntos.Count <= 12)
+        {
+            return true;
+        }
+
+        var salto = (int)Math.Ceiling(_puntos.Count / 12d);
+        return indice % salto == 0 || indice == _puntos.Count - 1;
+    }
+
+    /// <summary>
+    /// Las coordenadas van con cultura invariante: un separador decimal con
+    /// coma rompería el atributo SVG.
+    /// </summary>
+    private static string Num(decimal valor) =>
+        valor.ToString("0.##", CultureInfo.InvariantCulture);
+}
