@@ -11,6 +11,52 @@
     gap: 1rem;
 }
 
+/* ---- Acciones del encabezado ----
+   El enlace al tablero y el botón de actualizar comparten estilo: uno lleva a
+   otra pantalla y el otro recarga esta, pero visualmente pesan igual y no hay
+   motivo para que uno destaque sobre el otro. El .boton se define aquí porque
+   el CSS de cada componente está aislado (es el mismo de las demás pantallas
+   del módulo de calidad). */
+.panel__acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.boton {
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+}
+
+.boton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.boton--fantasma:hover:not(:disabled) {
+    background: var(--op-seleccion);
+}
+
+/* El enlace es un <a> y no un <button>: debe poder abrirse en otra pestaña y
+   mostrar su destino en la barra de estado. Solo se le quita el subrayado y se
+   le alinea el texto para que parezca lo mismo. */
+.panel__enlace {
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--op-azul);
+    font-weight: 600;
+}
+
+.panel__enlace:hover {
+    text-decoration: none;
+}
+
 .panel__titulo {
     margin: 0;
     font-size: 1.05rem;

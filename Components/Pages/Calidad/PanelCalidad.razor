@@ -16,9 +16,24 @@
                 · últimos @DiasVentana días
             </p>
         </div>
-        <button type="button" class="boton boton--fantasma" @onclick="CargarAsync" disabled="@_cargando">
-            @(_cargando ? "Actualizando…" : "Actualizar")
-        </button>
+        <div class="panel__acciones">
+            @* El panel dice qué hay pendiente AHORA; el tablero dice cómo viene
+               comportándose la planta. Son las dos mitades de la misma pregunta,
+               así que desde aquí se llega allá sin pasar por el menú.
+
+               Se oculta a quien no tenga VER_INDICADORES: Ingeniería de Calidad
+               entra a este panel pero no al tablero, y un enlace que lleva a una
+               pantalla prohibida es peor que no tenerlo. *@
+            <AuthorizeView Policy="VER_INDICADORES">
+                <a class="boton boton--fantasma panel__enlace" href="/indicadores">
+                    Indicadores de la semana
+                </a>
+            </AuthorizeView>
+
+            <button type="button" class="boton boton--fantasma" @onclick="CargarAsync" disabled="@_cargando">
+                @(_cargando ? "Actualizando…" : "Actualizar")
+            </button>
+        </div>
     </div>
 
     @if (_error is not null)
