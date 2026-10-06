@@ -59,6 +59,69 @@
     text-decoration: underline;
 }
 
+/* ---- Filtros secundarios ----
+   Plegados por omisión: con nueve combos en una sola barra, lo que se mira
+   todos los días se pierde entre lo que se usa una vez al mes. */
+.mas-filtros {
+    border-bottom: 1px solid var(--op-borde);
+    background: var(--op-fondo);
+}
+
+.mas-filtros__titulo {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 0.35rem 0.65rem;
+    border: 0;
+    background: none;
+    color: var(--op-texto-secundario);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mas-filtros__titulo:hover {
+    color: var(--op-azul);
+}
+
+.mas-filtros__flecha {
+    font-size: 0.6rem;
+}
+
+/* La cuenta avisa de un filtro aplicado que está fuera de la vista: es la
+   explicación más frecuente de un indicador que "no cuadra". */
+.mas-filtros__cuenta {
+    padding: 0.05rem 0.35rem;
+    border-radius: 8px;
+    background: var(--op-seleccion);
+    color: var(--op-info-fg);
+    font-size: 0.62rem;
+}
+
+.filtros--secundarios {
+    border-bottom: 0;
+    padding-top: 0;
+}
+
+.mas-filtros__limpiar {
+    align-self: flex-end;
+    margin-bottom: 0.1rem;
+    border: 1px solid var(--op-borde);
+    border-radius: 3px;
+    background: #fff;
+    color: var(--op-texto-secundario);
+    font-size: 0.68rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+}
+
+.mas-filtros__limpiar:hover {
+    border-color: var(--op-peligro-fg);
+    color: var(--op-peligro-fg);
+}
+
 /* Atajos de periodo: la semana, el mes y el trimestre son el 90 % de las
    consultas y no deberían costar dos calendarios. */
 .atajos {

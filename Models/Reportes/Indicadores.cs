@@ -11,8 +11,21 @@ namespace calidad_app.Models.Reportes;
 /// </summary>
 public class FiltroIndicadores
 {
+    /// <summary>
+    /// Por omisión, la semana en curso: siete días.
+    ///
+    /// No es un número elegido al azar. El tablero compara contra el periodo
+    /// anterior de IGUAL longitud, así que el rango por omisión decide también
+    /// contra qué se compara: con treinta días, la comparación es contra el mes
+    /// anterior, y el mes anterior puede ser un tramo sin producción confirmada
+    /// (el histórico que vino del ERP no trae bobinas). La tarjeta mostraría
+    /// entonces una mejora de nueve puntos que no significa nada, y eso es lo
+    /// primero que vería quien abre la pantalla. Con siete días la comparación
+    /// cae sobre la semana pasada, que es además el horizonte con el que se
+    /// sigue una planta.
+    /// </summary>
     public DateOnly FechaDesde { get; set; } =
-        DateOnly.FromDateTime(DateTime.Today.AddDays(-29));
+        DateOnly.FromDateTime(DateTime.Today.AddDays(-6));
 
     public DateOnly FechaHasta { get; set; } = DateOnly.FromDateTime(DateTime.Today);
 

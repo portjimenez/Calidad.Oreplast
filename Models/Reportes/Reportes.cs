@@ -45,6 +45,18 @@ public record DefinicionReporte(string Clave, string Nombre, string Descripcion)
 /// </summary>
 public class FiltroReporte : FiltroIndicadores
 {
+    /// <summary>
+    /// Un reporte se pide por mes, no por semana: el tablero arranca en siete
+    /// días porque de ese rango depende contra qué se compara, pero aquí no hay
+    /// comparación y quien entra a generar un reporte casi siempre quiere el
+    /// mes. Cuando se llega desde el tablero, el periodo viaja en la dirección
+    /// y este valor no se usa.
+    /// </summary>
+    public FiltroReporte()
+    {
+        FechaDesde = DateOnly.FromDateTime(DateTime.Today.AddDays(-29));
+    }
+
     public int? SeveridadId { get; set; }
     public int? ParametroId { get; set; }
     public string? EstadoLote { get; set; }

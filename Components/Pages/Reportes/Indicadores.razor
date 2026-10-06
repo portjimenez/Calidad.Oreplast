@@ -58,7 +58,7 @@
                 <span>Línea</span>
                 <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
                     <option value="0">Todas</option>
-                    @foreach (var linea in _selectores.Lineas)
+                    @foreach (var linea in LineasDelAmbito)
                     {
                         <option value="@linea.LineaId">@linea.Etiqueta</option>
                     }
@@ -89,21 +89,100 @@
                 </select>
             </label>
 
-            <label class="filtros__campo">
-                <span>Cliente</span>
-                <select value="@(_filtro.ClienteId ?? 0)"
-                        @onchange="e => CambiarAsync(f => f.ClienteId = LeerIdNulo(e))">
-                    <option value="0">Todos</option>
-                    @foreach (var cliente in _selectores.Clientes)
-                    {
-                        <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
-                    }
-                </select>
-            </label>
-
             <AuthorizeView Policy="GENERAR_REPORTES">
                 <a class="filtros__enlace" href="@EnlaceReportes">Generar reporte de este periodo</a>
             </AuthorizeView>
+        </div>
+
+        @* Los cortes de uso diario (periodo, línea, máquina, turno) quedan a la
+           vista; los demás se despliegan. Con los nueve en una sola barra, la
+           pantalla empieza por una pared de combos y lo que se mira todos los
+           días cuesta encontrarlo. El resumen del resorte dice cuántos están
+           puestos, para que un filtro olvidado no explique un número raro. *@
+        <div class="mas-filtros">
+            <button type="button" class="mas-filtros__titulo" aria-expanded="@_masFiltros"
+                    @onclick="() => _masFiltros = !_masFiltros">
+                <span class="mas-filtros__flecha">@(_masFiltros ? "▾" : "▸")</span>
+                Más filtros
+                @if (FiltrosSecundarios > 0)
+                {
+                    <span class="mas-filtros__cuenta">@FiltrosSecundarios aplicado(s)</span>
+                }
+            </button>
+
+            @if (_masFiltros)
+            {
+            <div class="filtros filtros--secundarios">
+                <label class="filtros__campo">
+                    <span>Área</span>
+                    <select value="@(_filtro.AreaId ?? 0)" @onchange="CambiarAreaAsync">
+                        <option value="0">Todas</option>
+                        @foreach (var area in _selectores.Areas)
+                        {
+                            <option value="@area.AreaId">@area.Nombre</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Cliente</span>
+                    <select value="@(_filtro.ClienteId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.ClienteId = LeerIdNulo(e))">
+                        <option value="0">Todos</option>
+                        @foreach (var cliente in _selectores.Clientes)
+                        {
+                            <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Operador</span>
+                    <select value="@(_filtro.OperadorId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.OperadorId = LeerIdNulo(e))">
+                        <option value="0">Todos</option>
+                        @foreach (var operador in _selectores.Operadores)
+                        {
+                            <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+
+                @* El producto se BUSCA y no se lista: son más de trescientos y
+                   crecen con el ERP, así que no caben en un combo. Es el mismo
+                   patrón de la pantalla de órdenes. *@
+                <label class="filtros__campo">
+                    <span>Buscar producto</span>
+                    <input type="search" placeholder="Código o nombre…"
+                           value="@_busquedaProducto" @onchange="BuscarProductoAsync" />
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Producto</span>
+                    <select value="@(_filtro.ProductoId ?? 0)" @onchange="CambiarProductoAsync">
+                        <option value="0">Todos</option>
+                        @* El producto ya elegido puede no estar en la última
+                           búsqueda; se agrega para no perderlo de vista. *@
+                        @if (_productoElegido is { } elegido
+                             && _selectores.Productos.All(p => p.ProductoId != elegido.ProductoId))
+                        {
+                            <option value="@elegido.ProductoId">@elegido.Etiqueta</option>
+                        }
+                        @foreach (var producto in _selectores.Productos)
+                        {
+                            <option value="@producto.ProductoId">@producto.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+
+                @if (FiltrosSecundarios > 0)
+                {
+                    <button type="button" class="mas-filtros__limpiar" @onclick="LimpiarSecundariosAsync">
+                        Quitar estos filtros
+                    </button>
+                }
+            </div>
+            }
         </div>
 
         @if (_cargando && _tablero.Totales.Registros == 0)
@@ -521,6 +600,19 @@
         ("Paro", "Minutos de paro", "min", p => p.Registros == 0 ? null : p.TiempoMuertoMin)
     ];
 
+    /* El ámbito puede llegar en la dirección, de modo que un tablero filtrado
+       se pueda enlazar o mandar por correo ("los indicadores de la línea 3 de
+       esta semana") y no haya que explicar qué combos tocar. Es el mismo juego
+       de parámetros que acepta el centro de reportes. */
+    [SupplyParameterFromQuery(Name = "desde")] public string? DesdeQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "hasta")] public string? HastaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "area")] public int? AreaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "linea")] public int? LineaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "maquina")] public int? MaquinaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "turno")] public int? TurnoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "cliente")] public int? ClienteQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "operador")] public int? OperadorQuery { get; set; }
+
     private readonly FiltroIndicadores _filtro = new();
     private SelectoresProduccion _selectores = new();
 
@@ -540,6 +632,22 @@
     private string? _error;
 
     /// <summary>
+    /// Si el bloque de filtros secundarios está desplegado. Arranca cerrado;
+    /// cuando hay alguno puesto, el resumen del encabezado lo avisa, de modo
+    /// que un filtro plegado nunca queda explicando un número en silencio.
+    /// </summary>
+    private bool _masFiltros;
+
+    private string _busquedaProducto = string.Empty;
+
+    /// <summary>
+    /// El producto elegido se recuerda aparte de la lista de resultados: una
+    /// búsqueda nueva reemplaza los resultados y si no estuviera aquí el combo
+    /// se quedaría mostrando "Todos" mientras el filtro sigue aplicado.
+    /// </summary>
+    private Models.Catalogos.ProductoOpcion? _productoElegido;
+
+    /// <summary>
     /// Escala de las barras del comparativo: el mayor del corte y no 100, para
     /// que las diferencias se vean. Si todas las líneas están entre 4 % y 9 %,
     /// una escala a 100 las dibujaría a todas igual de cortas.
@@ -547,12 +655,63 @@
     private decimal _maxDesperdicio = 1;
     private decimal _maxCausa = 1;
 
-    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
-        _filtro.LineaId is { } linea ? _selectores.MaquinasDe(linea) : _selectores.Maquinas;
+    /// <summary>
+    /// Área, línea y máquina forman una jerarquía: elegir un área acota las
+    /// líneas y elegir una línea acota las máquinas. Sin esto, el combo de
+    /// máquinas ofrecería equipos de otra área y el filtro devolvería un
+    /// periodo vacío sin explicar por qué.
+    /// </summary>
+    private IEnumerable<Models.Catalogos.LineaOpcion> LineasDelAmbito =>
+        _filtro.AreaId is { } area ? _selectores.LineasDe(area) : _selectores.Lineas;
 
-    /// <summary>Lleva al centro de reportes con el mismo periodo ya puesto.</summary>
-    private string EnlaceReportes =>
-        $"/reportes?desde={_filtro.FechaDesde:yyyy-MM-dd}&hasta={_filtro.FechaHasta:yyyy-MM-dd}";
+    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
+        _filtro.LineaId is { } linea
+            ? _selectores.MaquinasDe(linea)
+            : _filtro.AreaId is { } area
+                ? _selectores.Maquinas.Where(m => m.AreaId == area)
+                : _selectores.Maquinas;
+
+    /// <summary>
+    /// Cuántos filtros secundarios están puestos. Se muestra junto a "Más
+    /// filtros" porque están plegados: un número raro casi siempre se explica
+    /// por un filtro que quedó aplicado y no se ve.
+    /// </summary>
+    private int FiltrosSecundarios =>
+        (_filtro.AreaId is not null ? 1 : 0)
+      + (_filtro.ClienteId is not null ? 1 : 0)
+      + (_filtro.OperadorId is not null ? 1 : 0)
+      + (_filtro.ProductoId is not null ? 1 : 0);
+
+    /// <summary>
+    /// Lleva al centro de reportes con el MISMO ámbito ya puesto, no solo con
+    /// el periodo: si alguien filtró la línea 3 y pide el reporte, espera el
+    /// reporte de la línea 3. Pasarle solo las fechas le daría toda la planta
+    /// y tendría que volver a filtrar a mano.
+    ///
+    /// El producto es la excepción: viaja por id y el centro de reportes
+    /// tendría un id sin etiqueta que mostrar (los productos se buscan, no se
+    /// listan), así que allí se vuelve a elegir con su propio buscador.
+    /// </summary>
+    private string EnlaceReportes
+    {
+        get
+        {
+            var partes = new List<string>
+            {
+                $"desde={_filtro.FechaDesde:yyyy-MM-dd}",
+                $"hasta={_filtro.FechaHasta:yyyy-MM-dd}"
+            };
+
+            if (_filtro.AreaId is { } area) partes.Add($"area={area}");
+            if (_filtro.LineaId is { } linea) partes.Add($"linea={linea}");
+            if (_filtro.MaquinaId is { } maquina) partes.Add($"maquina={maquina}");
+            if (_filtro.TurnoId is { } turno) partes.Add($"turno={turno}");
+            if (_filtro.ClienteId is { } cliente) partes.Add($"cliente={cliente}");
+            if (_filtro.OperadorId is { } operador) partes.Add($"operador={operador}");
+
+            return "/reportes?" + string.Join('&', partes);
+        }
+    }
 
     private string UnidadMetrica =>
         Metricas.First(m => m.Clave == _metrica).Unidad;
@@ -581,6 +740,27 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (DateOnly.TryParse(DesdeQuery, out var desde))
+        {
+            _filtro.FechaDesde = desde;
+        }
+
+        if (DateOnly.TryParse(HastaQuery, out var hasta))
+        {
+            _filtro.FechaHasta = hasta;
+        }
+
+        _filtro.AreaId = AreaQuery;
+        _filtro.LineaId = LineaQuery;
+        _filtro.MaquinaId = MaquinaQuery;
+        _filtro.TurnoId = TurnoQuery;
+        _filtro.ClienteId = ClienteQuery;
+        _filtro.OperadorId = OperadorQuery;
+
+        // Si el ámbito llegó con filtros secundarios, el bloque se abre: un
+        // filtro que está afectando a los números no puede quedar plegado.
+        _masFiltros = FiltrosSecundarios > 0;
+
         try
         {
             _selectores = await Catalogos.ObtenerSelectoresAsync();
@@ -693,6 +873,69 @@
             f.LineaId = LeerIdNulo(e);
             f.MaquinaId = null;
         });
+
+    /// <summary>
+    /// Cambiar de área invalida la línea y la máquina por el mismo motivo:
+    /// pertenecían al área anterior y dejarlas puestas daría un ámbito
+    /// imposible (la línea de un área con la máquina de otra) que devuelve
+    /// cero corridas sin decir por qué.
+    /// </summary>
+    private Task CambiarAreaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.AreaId = LeerIdNulo(e);
+            f.LineaId = null;
+            f.MaquinaId = null;
+        });
+
+    private Task CambiarProductoAsync(ChangeEventArgs e)
+    {
+        var productoId = LeerIdNulo(e);
+
+        _productoElegido = productoId is null
+            ? null
+            : _selectores.Productos.FirstOrDefault(p => p.ProductoId == productoId) ?? _productoElegido;
+
+        return CambiarAsync(f => f.ProductoId = productoId);
+    }
+
+    /// <summary>
+    /// Busca productos por código o nombre. Sin texto no se pide nada: el
+    /// procedimiento no devuelve productos sin búsqueda, porque son más de
+    /// trescientos. Esta búsqueda NO recarga los indicadores: solo cambia lo
+    /// que ofrece el combo.
+    /// </summary>
+    private async Task BuscarProductoAsync(ChangeEventArgs e)
+    {
+        _busquedaProducto = e.Value?.ToString() ?? string.Empty;
+
+        try
+        {
+            var busqueda = _busquedaProducto.Trim();
+
+            _selectores = busqueda.Length == 0
+                ? await Catalogos.ObtenerSelectoresAsync()
+                : await Catalogos.ObtenerSelectoresAsync(busqueda);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
+
+    private Task LimpiarSecundariosAsync()
+    {
+        _busquedaProducto = string.Empty;
+        _productoElegido = null;
+
+        return CambiarAsync(f =>
+        {
+            f.AreaId = null;
+            f.ClienteId = null;
+            f.OperadorId = null;
+            f.ProductoId = null;
+        });
+    }
 
     private Task UltimosDiasAsync(int dias) =>
         CambiarAsync(f =>

@@ -2,13 +2,19 @@
 @using calidad_app.Data.Sp
 @using calidad_app.Models.Reportes
 @using calidad_app.Models.Produccion
+@using calidad_app.Models.Calidad
+@using calidad_app.Models.Catalogos
 @using calidad_app.Services.Reportes
 @using calidad_app.Services.Produccion
+@using calidad_app.Services.Calidad
+@using calidad_app.Services.Catalogos
 @using calidad_app.Components.Shared
 @implements IAsyncDisposable
 @attribute [Authorize(Policy = "GENERAR_REPORTES")]
 @inject IReporteService Reportes
 @inject ICatalogoProduccionService Catalogos
+@inject INoConformidadService Calidad
+@inject ICatalogoProcesoService CatalogosProceso
 @inject IJSRuntime JS
 
 <PageTitle>Reportes</PageTitle>
@@ -58,11 +64,26 @@
 
             @if (_reporte != ClavesReporte.Lotes)
             {
+                @* El área se muestra aunque hoy la planta tenga una sola: el
+                   reporte puede llegar filtrado por área desde el tablero, y un
+                   filtro que llega y no se ve es un filtro que no se puede
+                   quitar. *@
+                <label class="filtros__campo">
+                    <span>Área</span>
+                    <select value="@(_filtro.AreaId ?? 0)" @onchange="CambiarAreaAsync">
+                        <option value="0">Todas</option>
+                        @foreach (var area in _selectores.Areas)
+                        {
+                            <option value="@area.AreaId">@area.Nombre</option>
+                        }
+                    </select>
+                </label>
+
                 <label class="filtros__campo">
                     <span>Línea</span>
                     <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
                         <option value="0">Todas</option>
-                        @foreach (var linea in _selectores.Lineas)
+                        @foreach (var linea in LineasDelAmbito)
                         {
                             <option value="@linea.LineaId">@linea.Etiqueta</option>
                         }
@@ -107,11 +128,64 @@
                         }
                     </select>
                 </label>
+
+                @* El producto se busca, no se lista: son más de trescientos. *@
+                <label class="filtros__campo">
+                    <span>Buscar producto</span>
+                    <input type="search" placeholder="Código o nombre…"
+                           value="@_busquedaProducto" @onchange="BuscarProductoAsync" />
+                </label>
+
+                <label class="filtros__campo">
+                    <span>Producto</span>
+                    <select value="@(_filtro.ProductoId ?? 0)" @onchange="CambiarProductoAsync">
+                        <option value="0">Todos</option>
+                        @if (_productoElegido is { } elegido
+                             && _selectores.Productos.All(p => p.ProductoId != elegido.ProductoId))
+                        {
+                            <option value="@elegido.ProductoId">@elegido.Etiqueta</option>
+                        }
+                        @foreach (var producto in _selectores.Productos)
+                        {
+                            <option value="@producto.ProductoId">@producto.Etiqueta</option>
+                        }
+                    </select>
+                </label>
+            }
+
+            @if (_reporte is ClavesReporte.Produccion)
+            {
+                <label class="filtros__campo">
+                    <span>Operador</span>
+                    <select value="@(_filtro.OperadorId ?? 0)"
+                            @onchange="e => CambiarAsync(f => f.OperadorId = LeerIdNulo(e))">
+                        <option value="0">Todos</option>
+                        @foreach (var operador in _selectores.Operadores)
+                        {
+                            <option value="@operador.UsuarioId">@operador.Etiqueta</option>
+                        }
+                    </select>
+                </label>
             }
 
             @switch (_reporte)
             {
                 case ClavesReporte.NoConformidades:
+                    @* La severidad sale del catálogo de calidad (cal.Severidad)
+                       y no escrita aquí: es la misma lista con la que se levanta
+                       una no conformidad en el módulo 3. *@
+                    <label class="filtros__campo">
+                        <span>Severidad</span>
+                        <select value="@(_filtro.SeveridadId ?? 0)"
+                                @onchange="e => CambiarAsync(f => f.SeveridadId = LeerIdNulo(e))">
+                            <option value="0">Todas</option>
+                            @foreach (var severidad in _severidades)
+                            {
+                                <option value="@severidad.SeveridadId">@severidad.Nombre</option>
+                            }
+                        </select>
+                    </label>
+
                     <label class="filtros__check">
                         <input type="checkbox" checked="@_filtro.SoloAbiertas"
                                @onchange="e => CambiarAsync(f => f.SoloAbiertas = Marcado(e))" />
@@ -120,6 +194,23 @@
                     break;
 
                 case ClavesReporte.Alertas:
+                    @* Filtrar por parámetro es lo que convierte este reporte en
+                       el seguimiento de una variable concreta: "todas las veces
+                       que la temperatura de zona 1 se salió de la ficha". *@
+                    <label class="filtros__campo">
+                        <span>Parámetro</span>
+                        <select value="@(_filtro.ParametroId ?? 0)"
+                                @onchange="e => CambiarAsync(f => f.ParametroId = LeerIdNulo(e))">
+                            <option value="0">Todos</option>
+                            @foreach (var parametro in _parametros)
+                            {
+                                <option value="@parametro.ParametroId">
+                                    @parametro.Codigo - @parametro.Nombre
+                                </option>
+                            }
+                        </select>
+                    </label>
+
                     <label class="filtros__check">
                         <input type="checkbox" checked="@_filtro.SoloPendientes"
                                @onchange="e => CambiarAsync(f => f.SoloPendientes = Marcado(e))" />
@@ -240,11 +331,36 @@
     /// </summary>
     private const int MaxVistaPrevia = 100;
 
+    /* El tablero enlaza aquí con su periodo Y su ámbito: el reporte es la
+       continuación de lo que se acaba de ver en los indicadores, así que
+       llega filtrado igual. */
+    /// <summary>
+    /// Permite enlazar directo a un reporte concreto, no solo al centro con el
+    /// primero abierto. Es lo que hace falta para mandar por correo "el reporte
+    /// de desviaciones de esta semana" como una dirección.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "reporte")] public string? ReporteQuery { get; set; }
+
     [SupplyParameterFromQuery(Name = "desde")] public string? DesdeQuery { get; set; }
     [SupplyParameterFromQuery(Name = "hasta")] public string? HastaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "area")] public int? AreaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "linea")] public int? LineaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "maquina")] public int? MaquinaQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "turno")] public int? TurnoQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "cliente")] public int? ClienteQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "operador")] public int? OperadorQuery { get; set; }
 
     private readonly FiltroReporte _filtro = new();
     private SelectoresProduccion _selectores = new();
+
+    /// <summary>
+    /// Catálogos que solo necesita un reporte: se piden la primera vez que ese
+    /// reporte se abre y no al entrar a la pantalla. Quien venga a sacar el
+    /// reporte de producción no tiene por qué pagar dos consultas de calidad
+    /// que no va a usar.
+    /// </summary>
+    private List<SeveridadCatalogo> _severidades = [];
+    private List<ParametroCatalogo> _parametros = [];
 
     private string _reporte = ClavesReporte.Produccion;
     private TablaReporte _tabla = new();
@@ -256,13 +372,31 @@
 
     private IJSObjectReference? _descargas;
 
-    private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
-        _filtro.LineaId is { } linea ? _selectores.MaquinasDe(linea) : _selectores.Maquinas;
+    private string _busquedaProducto = string.Empty;
+    private ProductoOpcion? _productoElegido;
+
+    /// <summary>Área, línea y máquina forman jerarquía, igual que en el tablero.</summary>
+    private IEnumerable<LineaOpcion> LineasDelAmbito =>
+        _filtro.AreaId is { } area ? _selectores.LineasDe(area) : _selectores.Lineas;
+
+    private IEnumerable<MaquinaOpcion> MaquinasDelAmbito =>
+        _filtro.LineaId is { } linea
+            ? _selectores.MaquinasDe(linea)
+            : _filtro.AreaId is { } area
+                ? _selectores.Maquinas.Where(m => m.AreaId == area)
+                : _selectores.Maquinas;
 
     protected override async Task OnInitializedAsync()
     {
-        // El tablero enlaza aquí con su mismo periodo: el reporte es la
-        // continuación natural de lo que se acaba de ver en los indicadores.
+        // Solo se acepta una clave del catálogo: una desconocida deja el
+        // reporte por omisión en lugar de dejar la pantalla sin nada que
+        // mostrar.
+        if (!string.IsNullOrWhiteSpace(ReporteQuery)
+            && ClavesReporte.Catalogo.Any(r => r.Clave == ReporteQuery))
+        {
+            _reporte = ReporteQuery;
+        }
+
         if (DateOnly.TryParse(DesdeQuery, out var desde))
         {
             _filtro.FechaDesde = desde;
@@ -273,6 +407,13 @@
             _filtro.FechaHasta = hasta;
         }
 
+        _filtro.AreaId = AreaQuery;
+        _filtro.LineaId = LineaQuery;
+        _filtro.MaquinaId = MaquinaQuery;
+        _filtro.TurnoId = TurnoQuery;
+        _filtro.ClienteId = ClienteQuery;
+        _filtro.OperadorId = OperadorQuery;
+
         try
         {
             _selectores = await Catalogos.ObtenerSelectoresAsync();
@@ -282,6 +423,7 @@
             _error = Traducir(ex);
         }
 
+        await CargarCatalogosDelReporteAsync();
         await ConsultarAsync();
     }
 
@@ -350,6 +492,12 @@
     {
         var partes = new List<string>();
 
+        if (_filtro.AreaId is { } areaId)
+        {
+            var area = _selectores.Areas.FirstOrDefault(a => a.AreaId == areaId);
+            partes.Add($"Área {area?.Nombre ?? areaId.ToString()}");
+        }
+
         if (_filtro.LineaId is { } lineaId)
         {
             var linea = _selectores.Lineas.FirstOrDefault(l => l.LineaId == lineaId);
@@ -374,6 +522,32 @@
             partes.Add($"Cliente {cliente?.Nombre ?? clienteId.ToString()}");
         }
 
+        if (_filtro.OperadorId is { } operadorId)
+        {
+            var operador = _selectores.Operadores.FirstOrDefault(o => o.UsuarioId == operadorId);
+            partes.Add($"Operador {operador?.NombreCompleto ?? operadorId.ToString()}");
+        }
+
+        if (_filtro.ProductoId is { } productoId)
+        {
+            var producto = _productoElegido?.ProductoId == productoId
+                ? _productoElegido
+                : _selectores.Productos.FirstOrDefault(p => p.ProductoId == productoId);
+            partes.Add($"Producto {producto?.Codigo ?? productoId.ToString()}");
+        }
+
+        if (_filtro.SeveridadId is { } severidadId)
+        {
+            var severidad = _severidades.FirstOrDefault(s => s.SeveridadId == severidadId);
+            partes.Add($"Severidad {severidad?.Nombre ?? severidadId.ToString()}");
+        }
+
+        if (_filtro.ParametroId is { } parametroId)
+        {
+            var parametro = _parametros.FirstOrDefault(p => p.ParametroId == parametroId);
+            partes.Add($"Parámetro {parametro?.Codigo ?? parametroId.ToString()}");
+        }
+
         if (!string.IsNullOrWhiteSpace(_filtro.EstadoLote))
         {
             partes.Add($"Lotes en estado {_filtro.EstadoLote}");
@@ -387,15 +561,51 @@
         return partes.Count == 0 ? "Toda la planta" : string.Join(", ", partes);
     }
 
-    private Task CambiarReporteAsync(string clave)
+    private async Task CambiarReporteAsync(string clave)
     {
         if (clave == _reporte)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _reporte = clave;
-        return ConsultarAsync();
+
+        // Los filtros propios del reporte anterior no se arrastran al nuevo:
+        // una severidad elegida en no conformidades no significa nada en el
+        // reporte de lotes, y dejarla puesta recortaría el resultado sin que
+        // haya un control a la vista que lo explique.
+        _filtro.SeveridadId = null;
+        _filtro.ParametroId = null;
+        _filtro.EstadoLote = null;
+        _filtro.SoloAbiertas = false;
+        _filtro.SoloPendientes = false;
+        _filtro.SoloCriticas = false;
+        _filtro.SoloSinCertificado = false;
+
+        await CargarCatalogosDelReporteAsync();
+        await ConsultarAsync();
+    }
+
+    private async Task CargarCatalogosDelReporteAsync()
+    {
+        try
+        {
+            if (_reporte == ClavesReporte.NoConformidades && _severidades.Count == 0)
+            {
+                var catalogos = await Calidad.ObtenerCatalogosAsync();
+                _severidades = catalogos.Severidades;
+            }
+            else if (_reporte == ClavesReporte.Alertas && _parametros.Count == 0)
+            {
+                _parametros = await CatalogosProceso.ListarParametrosAsync(soloActivos: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Que falte un combo no debe impedir ver el reporte: se avisa y el
+            // filtro se queda en "Todos", que es su valor por omisión.
+            _error = Traducir(ex);
+        }
     }
 
     private Task CambiarAsync(Action<FiltroReporte> cambio)
@@ -410,6 +620,48 @@
             f.LineaId = LeerIdNulo(e);
             f.MaquinaId = null;
         });
+
+    private Task CambiarAreaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.AreaId = LeerIdNulo(e);
+            f.LineaId = null;
+            f.MaquinaId = null;
+        });
+
+    private Task CambiarProductoAsync(ChangeEventArgs e)
+    {
+        var productoId = LeerIdNulo(e);
+
+        _productoElegido = productoId is null
+            ? null
+            : _selectores.Productos.FirstOrDefault(p => p.ProductoId == productoId) ?? _productoElegido;
+
+        return CambiarAsync(f => f.ProductoId = productoId);
+    }
+
+    /// <summary>
+    /// Busca productos por código o nombre; sin texto, el procedimiento no
+    /// devuelve ninguno. No vuelve a consultar el reporte: solo cambia lo que
+    /// ofrece el combo.
+    /// </summary>
+    private async Task BuscarProductoAsync(ChangeEventArgs e)
+    {
+        _busquedaProducto = e.Value?.ToString() ?? string.Empty;
+
+        try
+        {
+            var busqueda = _busquedaProducto.Trim();
+
+            _selectores = busqueda.Length == 0
+                ? await Catalogos.ObtenerSelectoresAsync()
+                : await Catalogos.ObtenerSelectoresAsync(busqueda);
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+    }
 
     private static bool Marcado(ChangeEventArgs e) => e.Value is bool valor && valor;
 
