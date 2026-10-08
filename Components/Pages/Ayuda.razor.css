@@ -1,0 +1,85 @@
+.ayuda {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.ayuda__lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+@media (max-width: 900px) {
+    .ayuda {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.ayuda__nota {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--op-texto-secundario);
+}
+
+.ayuda__grupo {
+    margin: 0.9rem 0 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--op-texto-secundario);
+}
+
+.ayuda__lista,
+.ayuda__botones,
+.ayuda__datos {
+    margin: 0;
+    font-size: 0.8rem;
+}
+
+.ayuda__lista dt,
+.ayuda__botones dt {
+    font-weight: 600;
+    color: var(--op-texto);
+}
+
+.ayuda__lista dt a {
+    color: var(--op-azul);
+    text-decoration: none;
+}
+
+.ayuda__lista dt a:hover {
+    text-decoration: underline;
+}
+
+.ayuda__lista dd,
+.ayuda__botones dd {
+    margin: 0.1rem 0 0.6rem;
+    color: var(--op-texto-secundario);
+}
+
+.ayuda__botones dt i {
+    width: 1.1rem;
+    color: #3c4a4a;
+    text-align: center;
+}
+
+/* Datos de "Acerca de" en dos columnas: etiqueta y valor. */
+.ayuda__datos {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 0.8rem;
+}
+
+.ayuda__datos dt {
+    font-weight: 600;
+    color: var(--op-texto-secundario);
+}
+
+.ayuda__datos dd {
+    margin: 0;
+    color: var(--op-texto);
+    overflow-wrap: anywhere;
+}

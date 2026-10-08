@@ -2,15 +2,45 @@
  *
  * Va aquí y no en el CSS aislado del componente porque los estilos con ámbito
  * de Blazor solo alcanzan a los elementos de su propio componente, y para
- * imprimir hay que ocultar el resto de la aplicación: la barra de título, el
- * menú lateral y el panel maestro. El certificado debe salir en el papel sin
- * nada de la pantalla alrededor.
+ * imprimir hay que ocultar el resto de la aplicación: la barra de título, la
+ * barra de herramientas, el menú lateral y el panel maestro.
  *
- * La técnica es la habitual: se oculta todo y se vuelve visible solo la rama
- * que contiene al documento, que luego se saca del flujo para que ocupe la
- * hoja completa. */
+ * Hay dos casos:
+ *  - Cualquier pantalla (botón Imprimir de la barra de herramientas): sale el
+ *    contenido tal como se ve, sin el marco de la aplicación alrededor.
+ *  - Una pantalla con un certificado abierto: sale SOLO el certificado, que
+ *    debe llegar al papel sin nada de la pantalla alrededor. */
 @media print {
-    body * {
+    /* ---------- Cualquier pantalla ---------- */
+    .app-titlebar,
+    .barra-herramientas,
+    .sidebar,
+    #blazor-error-ui,
+    #components-reconnect-modal {
+        display: none !important;
+    }
+
+    .app-contenido {
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    /* En pantalla la aplicación mide lo que la ventana y solo se desplaza el
+       contenido (menú fijo). En papel eso cortaría todo lo que no cabe en la
+       primera pantalla: se devuelve la altura natural para que salga completo. */
+    .app-shell,
+    .app-body,
+    .app-contenido {
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    /* ---------- Certificado ----------
+     * La técnica es la habitual: se oculta todo y se vuelve visible solo la rama
+     * que contiene al documento, que luego se saca del flujo para que ocupe la
+     * hoja completa. Va condicionada con :has() porque, sin la condición, ocultar
+     * "body *" deja en blanco cualquier otra pantalla que se imprima. */
+    body:has(#certificado-imprimible) * {
         visibility: hidden;
     }
 

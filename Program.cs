@@ -21,6 +21,10 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddHttpContextAccessor();
 
+// Barra de herramientas: lo que la pantalla abierta le anuncia (actualizar, exportar).
+// Scoped = uno por circuito, es decir, por pestaña del navegador.
+builder.Services.AddScoped<calidad_app.Components.Layout.AccionesPantalla>();
+
 // Fábrica en vez de un DbContext con ámbito: varios componentes pueden inicializarse en
 // paralelo dentro del mismo circuito (ver MainLayout + SelectorUsuarioSimulado), y un solo
 // DbContext no admite operaciones concurrentes.

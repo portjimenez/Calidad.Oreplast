@@ -1,0 +1,47 @@
+@implements IDisposable
+@inject AccionesPantalla Acciones
+
+@*
+    Anuncia a la barra de herramientas lo que sabe hacer la pantalla que lo
+    contiene. No dibuja nada; se coloca una vez en la página:
+
+        <AccionesDePantalla Actualizar="CargarAsync" />
+
+    Lo publica al recibir parámetros y lo retira al desecharse, así que entrar y
+    salir de la pantalla basta para que la barra se entere: la página no tiene que
+    acordarse de limpiar nada.
+*@
+
+@code {
+    // Son EventCallback y no Func<Task> a propósito: un EventCallback recuerda qué
+    // componente es el dueño del método y lo redibuja al terminar. Con un Func la
+    // barra ejecutaría la recarga, pero la página no se enteraría de que tiene
+    // datos nuevos y seguiría mostrando los viejos.
+
+    /// <summary>Vuelve a consultar los datos conservando los filtros de la pantalla.</summary>
+    [Parameter] public EventCallback Actualizar { get; set; }
+
+    [Parameter] public EventCallback Exportar { get; set; }
+
+    [Parameter] public bool ExportarHabilitado { get; set; } = true;
+
+    /// <summary>Texto del botón de exportar (aparece como descripción emergente).</summary>
+    [Parameter] public string TextoExportar { get; set; } = "Exportar";
+
+    private readonly AccionesPantalla.Registro _registro = new();
+
+    protected override void OnParametersSet()
+    {
+        _registro.Actualizar = Actualizar.HasDelegate ? () => Actualizar.InvokeAsync() : null;
+        _registro.Exportar = Exportar.HasDelegate ? () => Exportar.InvokeAsync() : null;
+        _registro.ExportarHabilitado = ExportarHabilitado;
+        _registro.TextoExportar = TextoExportar;
+
+        // Se vuelve a publicar en cada render de la página: así la barra sigue
+        // al instante si exportar deja de tener sentido (por ejemplo, un filtro
+        // que deja el reporte sin filas).
+        Acciones.Publicar(_registro);
+    }
+
+    public void Dispose() => Acciones.Retirar(_registro);
+}

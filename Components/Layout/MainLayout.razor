@@ -1,11 +1,18 @@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
 @inject IWebHostEnvironment Entorno
+@inject NavigationManager Navegacion
+@inject IJSRuntime JS
 
 <div class="app-shell">
     <header class="app-titlebar">
         <div class="app-titlebar__marca">
             <img class="app-titlebar__logo" src="img/Logo-Oreplast-Mail.jpg" alt="Oreplast" />
             <span class="app-titlebar__nombre">Control de Calidad</span>
+            <NavLink class="app-titlebar__ayuda" href="/ayuda" Match="NavLinkMatch.All">
+                <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+                Ayuda
+            </NavLink>
         </div>
         <div class="app-titlebar__usuario">
             <AuthorizeView>
@@ -25,10 +32,18 @@
         </div>
     </header>
 
-    <div class="app-body">
-        <NavMenu />
+    <BarraHerramientas MenuPlegado="_menuPlegado"
+                       AlAlternarMenu="() => _menuPlegado = !_menuPlegado"
+                       AlReconstruirPagina="ReconstruirPagina" />
 
-        <main class="app-contenido">
+    <div class="app-body">
+        <NavMenu Plegado="_menuPlegado" />
+
+        @* El @key permite "Actualizar" cualquier pantalla aunque no anuncie su
+           propia recarga: al cambiar la clave, Blazor desecha la página y la
+           vuelve a crear, con lo que vuelve a leer todos sus datos. Es como un
+           F5 pero sin recargar el navegador ni reconectar el circuito. *@
+        <main class="app-contenido" @key="_versionPagina" @ref="_contenido">
             @Body
         </main>
     </div>
@@ -39,3 +54,67 @@
     <a href="." class="reload">Recargar</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool _menuPlegado;
+    private int _versionPagina;
+
+    private ElementReference _contenido;
+    private IJSObjectReference? _layoutJs;
+    private string _rutaActual = string.Empty;
+    private bool _volverArriba;
+
+    protected override void OnInitialized()
+    {
+        _rutaActual = Navegacion.ToBaseRelativePath(Navegacion.Uri).Split('?', '#')[0];
+        Navegacion.LocationChanged += AlCambiarUbicacion;
+    }
+
+    private void ReconstruirPagina() => _versionPagina++;
+
+    /// <summary>
+    /// Al cambiar de pantalla el contenido se regresa arriba; de lo contrario la
+    /// pantalla nueva se abriría a la altura en que quedó la anterior. Solo cuenta
+    /// la ruta: si cambia únicamente la consulta (?desde=...&amp;linea=...) es la
+    /// misma pantalla cambiando filtros, y moverla arriba sería una molestia.
+    /// </summary>
+    private void AlCambiarUbicacion(object? sender, LocationChangedEventArgs e)
+    {
+        var ruta = Navegacion.ToBaseRelativePath(e.Location).Split('?', '#')[0];
+
+        if (!string.Equals(ruta, _rutaActual, StringComparison.OrdinalIgnoreCase))
+        {
+            _rutaActual = ruta;
+            _volverArriba = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_volverArriba)
+        {
+            return;
+        }
+
+        _volverArriba = false;
+        _layoutJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/layout.js");
+        await _layoutJs.InvokeVoidAsync("irArriba", _contenido);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Navegacion.LocationChanged -= AlCambiarUbicacion;
+
+        if (_layoutJs is not null)
+        {
+            try
+            {
+                await _layoutJs.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // El circuito ya se cerró (pestaña cerrada): no hay módulo que liberar.
+            }
+        }
+    }
+}

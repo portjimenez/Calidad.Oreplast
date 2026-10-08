@@ -1,0 +1,51 @@
+/* Medidas y colores tomados del mockup: 34px de alto, fondo #dfe4e4, línea
+   inferior #b7c1c1 e íconos #3c4a4a. */
+.barra-herramientas {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    height: 34px;
+    padding: 0 0.6rem;
+    background: #dfe4e4;
+    border-bottom: 1px solid #b7c1c1;
+}
+
+.barra-herramientas__boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: none;
+    color: #3c4a4a;
+    font-size: 0.95rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.barra-herramientas__boton:hover:not(:disabled) {
+    background: #cfd6d6;
+    border-color: #b7c1c1;
+    color: var(--op-azul);
+}
+
+.barra-herramientas__boton:focus-visible {
+    outline: 2px solid var(--op-azul);
+    outline-offset: 1px;
+}
+
+.barra-herramientas__boton:disabled {
+    color: #9aa6a6;
+    cursor: default;
+}
+
+.barra-herramientas__separador {
+    width: 1px;
+    height: 14px;
+    margin: 0 0.2rem;
+    background: #b7c1c1;
+}

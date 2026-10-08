@@ -18,6 +18,11 @@
 @inject IJSRuntime JS
 
 <PageTitle>Reportes</PageTitle>
+@* La barra de herramientas actualiza sin perder los filtros y exporta a Excel, igual que el botón "Descargar Excel". *@
+<AccionesDePantalla Actualizar="ConsultarAsync"
+                    Exportar="() => DescargarAsync(FormatoArchivo.Excel)"
+                    ExportarHabilitado="@(!_ocupado && !_cargando && _tabla.Filas.Count > 0)"
+                    TextoExportar="Exportar a Excel" />
 
 @* Centro de reportes.
 

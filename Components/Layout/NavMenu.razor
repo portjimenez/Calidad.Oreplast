@@ -1,175 +1,48 @@
-@using System.Reflection
-@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 
 @*
     Menú lateral. Solo ofrece las pantallas que el usuario puede abrir.
 
-    El permiso de cada entrada NO se escribe aquí: se lee del atributo
-    [Authorize(Policy = "...")] de la propia pantalla destino, buscándola por su
-    ruta. Así hay una sola fuente de verdad. Si mañana una pantalla cambia el
-    permiso que exige, el menú la ofrece o la esconde en consecuencia sin que
-    nadie tenga que acordarse de venir a tocar esta lista, que es justo la clase
-    de olvido que deja un menú ofreciendo un 403.
+    Qué pantallas hay y qué permiso exige cada una lo resuelve MapaPantallas
+    (leyendo el [Authorize] de la página destino), el mismo que usan la barra de
+    herramientas y la Ayuda. Así hay una sola fuente de verdad.
 
-    Esto NO es el mecanismo de autorización: la que decide sigue siendo la
-    política de cada página (y el FallbackPolicy de Program.cs). El menú solo
-    deja de ofrecer lo que no se puede abrir, porque un enlace que lleva a
-    "Acceso no autorizado" es peor que no tener el enlace.
+    Plegado lo controla el botón de menú de la barra de herramientas: deja más
+    ancho a las pantallas con tablas grandes (inspección, bitácora).
 *@
 
-<nav class="sidebar">
+<nav class="sidebar @(Plegado ? "sidebar--plegado" : null)" aria-hidden="@(Plegado ? "true" : null)">
     <div class="sidebar__explorador">Explorador de objetos</div>
 
     @foreach (var grupo in _visibles)
     {
         <div class="sidebar__grupo">
             <div class="sidebar__grupo-titulo">@grupo.Titulo</div>
-            @foreach (var item in grupo.Items)
+            @foreach (var pantalla in grupo.Pantallas)
             {
-                <NavLink class="sidebar__item" href="@item.Href" Match="NavLinkMatch.All">
-                    @item.Texto
+                <NavLink class="sidebar__item" href="@pantalla.Href" Match="NavLinkMatch.All">
+                    @pantalla.Texto
                 </NavLink>
             }
         </div>
     }
 
-    <div class="sidebar__pie">
-        <span>Planta Mixco z.2</span>
-        @if (Entorno.IsDevelopment())
-        {
-            <a href="/dev/salir" class="sidebar__cerrar-sesion">Cerrar sesión</a>
-        }
-        else
-        {
-            @* Windows Authentication no permite cerrar sesión desde la app: la credencial la conserva el navegador. *@
-            <span>Cerrar sesión</span>
-        }
-    </div>
+    @* Sin pie: "Cerrar sesión" no aplica con Windows Authentication (la credencial
+       la conserva el navegador; en desarrollo el usuario se cambia con el selector
+       de la barra de título). *@
 </nav>
 
 @code {
-    [Inject] private IWebHostEnvironment Entorno { get; set; } = default!;
-
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
-    private sealed record ItemMenu(string Texto, string Href);
-    private sealed record GrupoMenu(string Titulo, List<ItemMenu> Items);
+    [Parameter] public bool Plegado { get; set; }
 
-    /// <summary>
-    /// El menú completo: texto, destino y orden. El permiso de cada pantalla no
-    /// está aquí a propósito (ver <see cref="PermisoDe"/>).
-    /// </summary>
-    private static readonly GrupoMenu[] Menu =
-    [
-        new("Monitoreo", [
-            new("Panel de calidad", "/"),
-            new("Alertas", "/alertas")
-        ]),
-        new("Producción", [
-            new("Órdenes de producción", "/ordenes-produccion"),
-            new("Inspección en proceso", "/inspeccion-en-proceso"),
-            new("Asignación de operadores", "/asignacion-operadores"),
-            new("Control de desperdicio", "/control-desperdicio")
-        ]),
-        new("Calidad", [
-            new("No conformidades", "/no-conformidades"),
-            new("Fichas técnicas", "/fichas-tecnicas"),
-            new("Trazabilidad por lote", "/trazabilidad-lote"),
-            new("Certificados", "/certificados")
-        ]),
-        new("Indicadores", [
-            new("Tablero de indicadores", "/indicadores"),
-            new("Reportes", "/reportes")
-        ]),
-        new("Administración", [
-            new("Usuarios y roles", "/usuarios-roles"),
-            new("Catálogos", "/catalogos"),
-            new("Bitácora", "/bitacora")
-        ])
-    ];
-
-    /// <summary>
-    /// Ruta de cada página con la política que exige, leída por reflexión de los
-    /// atributos del componente. Se calcula una vez por proceso: recorrer los
-    /// tipos del ensamblado es barato pero no gratis, y el menú se dibuja en
-    /// cada navegación.
-    /// </summary>
-    private static readonly Dictionary<string, string> PoliticasPorRuta = ResolverPoliticas();
-
-    private List<GrupoMenu> _visibles = [];
+    private List<MapaPantallas.Grupo> _visibles = [];
 
     protected override async Task OnParametersSetAsync()
     {
-        _visibles = [];
-
-        if (EstadoAutenticacion is null)
-        {
-            return;
-        }
-
-        var usuario = (await EstadoAutenticacion).User;
-
-        if (usuario.Identity?.IsAuthenticated != true)
-        {
-            return;
-        }
-
-        _visibles = Menu
-            .Select(g => new GrupoMenu(g.Titulo, g.Items.Where(i => PuedeVer(usuario, i)).ToList()))
-            // Un grupo sin entradas visibles no se dibuja: su título solo
-            // anunciaría un apartado vacío (al Administrador, por ejemplo, no le
-            // corresponde ninguna pantalla de Producción).
-            .Where(g => g.Items.Count > 0)
-            .ToList();
+        _visibles = EstadoAutenticacion is null
+            ? []
+            : MapaPantallas.VisiblesPara((await EstadoAutenticacion).User);
     }
-
-    /// <summary>
-    /// Se compara contra el claim "permiso", que es la misma fuente que lee
-    /// <c>PermisoAuthorizationHandler</c> al autorizar la página. Si las dos
-    /// cosas se preguntaran de formas distintas podrían contradecirse.
-    ///
-    /// Una pantalla sin política (o cuya ruta no se encuentre) se muestra: el
-    /// menú no es quien decide el acceso, y esconder una pantalla por un fallo
-    /// de resolución dejaría al usuario sin forma de llegar a algo que sí puede
-    /// usar. Si no le corresponde, la propia página lo rechaza.
-    /// </summary>
-    private static bool PuedeVer(System.Security.Claims.ClaimsPrincipal usuario, ItemMenu item) =>
-        PermisoDe(item.Href) is not { } permiso || usuario.HasClaim("permiso", permiso);
-
-    private static string? PermisoDe(string href) =>
-        PoliticasPorRuta.TryGetValue(Normalizar(href), out var politica) ? politica : null;
-
-    private static Dictionary<string, string> ResolverPoliticas()
-    {
-        var politicas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var tipo in typeof(NavMenu).Assembly.GetTypes())
-        {
-            if (!typeof(ComponentBase).IsAssignableFrom(tipo))
-            {
-                continue;
-            }
-
-            var politica = tipo.GetCustomAttributes<AuthorizeAttribute>(inherit: true)
-                .Select(a => a.Policy)
-                .FirstOrDefault(p => !string.IsNullOrWhiteSpace(p));
-
-            if (politica is null)
-            {
-                continue;
-            }
-
-            foreach (var ruta in tipo.GetCustomAttributes<RouteAttribute>(inherit: true))
-            {
-                politicas[Normalizar(ruta.Template)] = politica;
-            }
-        }
-
-        return politicas;
-    }
-
-    /// <summary>La barra final no distingue una ruta: "/alertas" y "/alertas/" son la misma.</summary>
-    private static string Normalizar(string ruta) =>
-        ruta.Length > 1 ? ruta.TrimEnd('/') : ruta;
 }

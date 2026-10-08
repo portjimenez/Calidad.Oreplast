@@ -1,7 +1,14 @@
+/* La aplicación ocupa exactamente la ventana y la ventana no se desplaza: el
+   que se desplaza es solo el contenido (.app-contenido). Así la barra de título,
+   la barra de herramientas y el menú lateral se quedan fijos en su lugar,
+   como en una aplicación de escritorio. dvh y no vh: en tabletas, vh cuenta
+   también la barra de direcciones del navegador y cortaría el borde inferior. */
 .app-shell {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
 .app-titlebar {
@@ -37,6 +44,25 @@
     font-size: 0.85rem;
 }
 
+/* "Ayuda" va junto al nombre del sistema, como en el mockup. NavLink es un
+   componente aparte, por eso necesita ::deep para recibir el estilo aislado. */
+.app-titlebar__marca ::deep .app-titlebar__ayuda {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 1.6rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 3px;
+    color: #fff;
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.app-titlebar__marca ::deep .app-titlebar__ayuda:hover,
+.app-titlebar__marca ::deep .app-titlebar__ayuda.active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
 .app-titlebar__usuario {
     display: flex;
     align-items: center;
@@ -64,6 +90,7 @@
 .app-contenido {
     flex: 1 1 auto;
     min-width: 0;
+    overflow: auto;
     padding: 1.1rem;
     background: var(--op-fondo);
 }
