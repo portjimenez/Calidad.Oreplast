@@ -39,8 +39,14 @@
      * La técnica es la habitual: se oculta todo y se vuelve visible solo la rama
      * que contiene al documento, que luego se saca del flujo para que ocupe la
      * hoja completa. Va condicionada con :has() porque, sin la condición, ocultar
-     * "body *" deja en blanco cualquier otra pantalla que se imprima. */
-    body:has(#certificado-imprimible) * {
+     * "body *" deja en blanco cualquier otra pantalla que se imprima.
+     *
+     * La condición va envuelta en :where() a propósito: :has() suma la
+     * especificidad de su argumento (aquí un id), y sin :where() esta regla le
+     * gana a "#certificado-imprimible *" y el certificado también queda oculto
+     * (la hoja sale en blanco). :where() pesa cero, así que manda la regla de
+     * abajo, que es la que debe volver visible el documento. */
+    :where(body:has(#certificado-imprimible)) * {
         visibility: hidden;
     }
 
