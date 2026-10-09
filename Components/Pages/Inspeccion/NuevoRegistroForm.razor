@@ -98,7 +98,7 @@
             <div class="campos">
                 <label>Tipo de registro
                     <select @onchange="CambiarTipo" value="@_tipoRegistroId">
-                        @foreach (var tipo in _catalogos.TiposRegistro)
+                        @foreach (var tipo in TiposDisponibles)
                         {
                             <option value="@tipo.TipoRegistroId">@tipo.Codigo - @tipo.Nombre</option>
                         }
@@ -169,6 +169,14 @@
 
     [Parameter] public EventCallback OnCancelar { get; set; }
 
+    /// <summary>
+    /// Área del usuario que captura. Con área, solo se ofrece el tipo de registro de
+    /// esa área (y con él sus máquinas); sin área se ofrecen todos.
+    /// </summary>
+    [Parameter] public int? AreaUsuario { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
     private CatalogosInspeccion _catalogos = new();
     private List<OrdenBusqueda> _ordenes = [];
     private OrdenBusqueda? _orden;
@@ -184,6 +192,7 @@
     private int _maquinaId;
     private int _turnoId;
     private int _operadorId;
+    private int? _usuarioActualId;
     private string _clasificacion = "P";
     private DateOnly _fecha = DateOnly.FromDateTime(DateTime.Now);
     private DateTime _inicio = DateTime.Now;
@@ -191,27 +200,50 @@
     private bool FormularioCompleto =>
         _orden is not null && _tipoRegistroId > 0 && _maquinaId > 0 && _turnoId > 0 && _operadorId > 0;
 
+    private IEnumerable<TipoRegistroCatalogo> TiposDisponibles =>
+        _catalogos.TiposRegistro.Where(t => AreaUsuario is null || t.AreaId == AreaUsuario);
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _catalogos = await Catalogos.ObtenerAsync();
+            if (EstadoAutenticacion is not null)
+            {
+                var estado = await EstadoAutenticacion;
+                _usuarioActualId = int.TryParse(
+                    estado.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                    out var id) ? id : null;
+            }
 
-            var tipo = _catalogos.TiposRegistro.FirstOrDefault();
+            // Los operadores se acotan al área del tipo elegido.
+            _catalogos = await Catalogos.ObtenerAsync(AreaUsuario);
+
+            var tipo = TiposDisponibles.FirstOrDefault();
             if (tipo is not null)
             {
                 _tipoRegistroId = tipo.TipoRegistroId;
                 _areaId = tipo.AreaId;
             }
 
+            if (AreaUsuario is null && _areaId > 0)
+            {
+                _catalogos.Operadores = (await Catalogos.ObtenerAsync(_areaId)).Operadores;
+            }
+
             _turnoId = _catalogos.Turnos.FirstOrDefault()?.TurnoId ?? 0;
-            _operadorId = _catalogos.Operadores.FirstOrDefault()?.UsuarioId ?? 0;
+            ElegirOperadorPredeterminado();
         }
         catch (Exception ex)
         {
             _error = MensajeDeError(ex);
         }
     }
+
+    /// <summary>Si quien captura es operador del área, el registro queda a su nombre.</summary>
+    private void ElegirOperadorPredeterminado() =>
+        _operadorId = _catalogos.Operadores.Any(o => o.UsuarioId == _usuarioActualId)
+            ? _usuarioActualId!.Value
+            : _catalogos.Operadores.FirstOrDefault()?.UsuarioId ?? 0;
 
     private async Task BuscarAsync()
     {
@@ -252,12 +284,27 @@
     /// El tipo de registro fija el área, y el área acota las máquinas: una
     /// máquina de otra área la rechazaría la base (error 50014).
     /// </summary>
-    private void CambiarTipo(ChangeEventArgs e)
+    private async Task CambiarTipo(ChangeEventArgs e)
     {
         _tipoRegistroId = LeerEntero(e);
+        var areaAnterior = _areaId;
         _areaId = _catalogos.TiposRegistro
             .FirstOrDefault(t => t.TipoRegistroId == _tipoRegistroId)?.AreaId ?? 0;
         _maquinaId = 0;
+
+        // Otra área, otros operadores: un extrusor no aparece en un registro de impresión.
+        if (_areaId != areaAnterior && _areaId > 0)
+        {
+            try
+            {
+                _catalogos.Operadores = (await Catalogos.ObtenerAsync(_areaId)).Operadores;
+                ElegirOperadorPredeterminado();
+            }
+            catch (Exception ex)
+            {
+                _error = MensajeDeError(ex);
+            }
+        }
     }
 
     private async Task CrearAsync()

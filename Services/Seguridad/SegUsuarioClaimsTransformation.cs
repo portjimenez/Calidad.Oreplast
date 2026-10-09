@@ -52,6 +52,12 @@ public class SegUsuarioClaimsTransformation(
             new(ClaimTypes.Role, resultado.RolNombre ?? string.Empty),
             new("usuario_dominio", resultado.UsuarioDominio),
         };
+        if (resultado.AreaId is { } areaId)
+        {
+            claims.Add(new Claim(ClaimsUsuario.AreaId, areaId.ToString()));
+            claims.Add(new Claim(ClaimsUsuario.AreaNombre, resultado.AreaNombre ?? string.Empty));
+        }
+
         claims.AddRange(permisos.Select(p => new Claim("permiso", p.Clave)));
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, TipoIdentidadEnriquecida));

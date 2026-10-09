@@ -1,6 +1,7 @@
 @* Solo se renderiza en Development. Cambia de usuario/rol simulado con una navegación real
    (GET /dev/simular), igual que un login real, para que la autorización a nivel de página
    (AuthorizeRouteView/FallbackPolicy) se re-evalúe correctamente. *@
+@using calidad_app.Models.Administracion
 @inject SimuladorIdentidadService Simulador
 @inject IHttpContextAccessor HttpContextAccessor
 
@@ -9,7 +10,7 @@
     @foreach (var usuario in _usuarios)
     {
         <option value="@usuario.UsuarioDominio" selected="@(usuario.UsuarioDominio == _actual)">
-            @usuario.RolNombre · @usuario.NombreCompleto
+            @Etiqueta(usuario)
         </option>
     }
 </select>
@@ -20,7 +21,22 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _usuarios = await Simulador.ObtenerUsuariosDisponiblesAsync();
         _actual = HttpContextAccessor.HttpContext?.Request.Cookies[SimulacionConstantes.CookieUsuario];
+        _usuarios = await Simulador.ObtenerUsuariosDisponiblesAsync(_actual);
+    }
+
+    /// <summary>
+    /// "Operador · Extrusión · 153 - JOSE VICENTE": a los operadores se les antepone su número
+    /// de colaborador, el mismo con que aparecen en los registros. Sin área, solo rol y nombre.
+    /// </summary>
+    private static string Etiqueta(UsuarioSimulado usuario)
+    {
+        var nombre = usuario.RolNombre == "Operador"
+            ? $"{usuario.Codigo} - {usuario.NombreCompleto}"
+            : usuario.NombreCompleto;
+
+        return string.IsNullOrEmpty(usuario.AreaNombre)
+            ? $"{usuario.RolNombre} · {nombre}"
+            : $"{usuario.RolNombre} · {TextosAdministracion.Area(usuario.AreaNombre)} · {nombre}";
     }
 }

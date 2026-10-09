@@ -77,6 +77,7 @@ internal static class MapeosInspeccion
         MaquinaNombre = r.Texto("MaquinaNombre"),
         AreaId = r.Entero("AreaId"),
         AreaNombre = r.Texto("AreaNombre"),
+        UsaMezcla = r.Booleano("UsaMezcla"),
         LineaId = r.EnteroNulo("LineaId"),
         LineaCodigo = r.TextoNulo("LineaCodigo"),
         LineaNombre = r.TextoNulo("LineaNombre"),

@@ -76,6 +76,12 @@ public class RegistroDetalle
     public string MaquinaNombre { get; set; } = string.Empty;
     public int AreaId { get; set; }
     public string AreaNombre { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Si el área declara mezcla de materiales (solo Extrusión). Lo decide la
+    /// base (cat.ufn_AreaUsaMezcla), la misma regla que aplica la liberación.
+    /// </summary>
+    public bool UsaMezcla { get; set; }
     public int? LineaId { get; set; }
     public string? LineaCodigo { get; set; }
     public string? LineaNombre { get; set; }

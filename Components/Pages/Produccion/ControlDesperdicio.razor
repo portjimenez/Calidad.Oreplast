@@ -1,6 +1,7 @@
 @page "/control-desperdicio"
 @using System.Globalization
 @using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
 @using calidad_app.Models.Produccion
 @using calidad_app.Services.Produccion
 @using calidad_app.Components.Shared
@@ -42,10 +43,21 @@
             </label>
 
             <label class="filtros__campo">
+                <span>Área</span>
+                <select value="@(_filtro.AreaId ?? 0)" @onchange="CambiarAreaAsync">
+                    <option value="0">Todas</option>
+                    @foreach (var area in _selectores.Areas.Where(a => a.Activo))
+                    {
+                        <option value="@area.AreaId">@TextosAdministracion.Area(area.Nombre)</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filtros__campo">
                 <span>Línea</span>
                 <select value="@(_filtro.LineaId ?? 0)" @onchange="CambiarLineaAsync">
                     <option value="0">Todas</option>
-                    @foreach (var linea in _selectores.Lineas)
+                    @foreach (var linea in LineasDelAmbito)
                     {
                         <option value="@linea.LineaId">@linea.Etiqueta</option>
                     }
@@ -392,10 +404,18 @@
     /// </summary>
     private decimal _maxPorcentaje = 1;
 
+    /// <summary>Área &gt; línea &gt; máquina es jerarquía: cada combo muestra solo lo que cabe en el de arriba.</summary>
+    private IEnumerable<Models.Catalogos.LineaOpcion> LineasDelAmbito =>
+        _filtro.AreaId is { } area
+            ? _selectores.LineasDe(area)
+            : _selectores.Lineas;
+
     private IEnumerable<Models.Catalogos.MaquinaOpcion> MaquinasDelAmbito =>
         _filtro.LineaId is { } linea
             ? _selectores.MaquinasDe(linea)
-            : _selectores.Maquinas;
+            : _filtro.AreaId is { } area
+                ? _selectores.Maquinas.Where(m => m.AreaId == area)
+                : _selectores.Maquinas;
 
     private string EtiquetaAgrupacion =>
         AgrupacionDesperdicio.Opciones.FirstOrDefault(o => o.Clave == _agrupar).Nombre ?? "Grupo";
@@ -489,6 +509,15 @@
     }
 
     /// <summary>Cambiar de línea invalida la máquina elegida: pertenecía a la anterior.</summary>
+    /// <summary>Cambiar el área limpia la línea y la máquina, que podrían ser de otra.</summary>
+    private Task CambiarAreaAsync(ChangeEventArgs e) =>
+        CambiarAsync(f =>
+        {
+            f.AreaId = LeerIdNulo(e);
+            f.LineaId = null;
+            f.MaquinaId = null;
+        });
+
     private Task CambiarLineaAsync(ChangeEventArgs e) =>
         CambiarAsync(f =>
         {

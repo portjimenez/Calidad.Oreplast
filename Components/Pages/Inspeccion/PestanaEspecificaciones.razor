@@ -101,7 +101,10 @@
         }
     </section>
 
-    @* ================= Mezcla de materiales ================= *@
+    @* ================= Mezcla de materiales =================
+       Solo en las áreas que trabajan con mezcla (Extrusión). *@
+    @if (UsaMezcla)
+    {
     <section class="bloque">
         <h4 class="bloque__titulo">Materiales de la mezcla</h4>
 
@@ -190,10 +193,14 @@
             </div>
         }
     </section>
+    }
 </div>
 
 @code {
     [Parameter, EditorRequired] public int RegistroId { get; set; }
+
+    /// <summary>Si el área del registro declara mezcla de materiales.</summary>
+    [Parameter] public bool UsaMezcla { get; set; } = true;
     [Parameter] public bool EsEditable { get; set; }
     [Parameter] public EventCallback OnCambio { get; set; }
 

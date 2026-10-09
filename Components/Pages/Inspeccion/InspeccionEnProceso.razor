@@ -1,5 +1,6 @@
 @page "/inspeccion-en-proceso"
 @using calidad_app.Data.Sp
+@using calidad_app.Models.Administracion
 @using calidad_app.Models.Inspeccion
 @using calidad_app.Services.Inspeccion
 @attribute [Authorize(Policy = "VER_ORDENES")]
@@ -83,7 +84,7 @@
 
                 @if (_modoNuevo)
                 {
-                    <NuevoRegistroForm OnCreado="RegistroCreadoAsync" OnCancelar="CancelarNuevo" />
+                    <NuevoRegistroForm AreaUsuario="_areaUsuario" OnCreado="RegistroCreadoAsync" OnCancelar="CancelarNuevo" />
                 }
                 else if (_detalle is null)
                 {
@@ -256,6 +257,7 @@
                         else if (_pestanaActiva == "especificaciones")
                         {
                             <PestanaEspecificaciones RegistroId="_detalle.RegistroId"
+                                                     UsaMezcla="_detalle.UsaMezcla"
                                                      EsEditable="@PuedeCapturar"
                                                      OnCambio="RefrescarContadoresAsync" />
                         }
@@ -356,6 +358,8 @@
     private bool _puedeLiberar;
     private bool _puedeDespejar;
     private int _areaCatalogos;
+    private int? _areaUsuario;
+    private string? _areaUsuarioNombre;
 
     protected override async Task OnInitializedAsync()
     {
@@ -365,6 +369,13 @@
             _puedeRegistrar = estado.User.HasClaim("permiso", "REGISTRAR_INSPECCION");
             _puedeLiberar = estado.User.HasClaim("permiso", "LIBERAR_PRODUCTO");
             _puedeDespejar = estado.User.HasClaim("permiso", "REALIZAR_DESPEJE");
+
+            // Un usuario con área (los operadores) trabaja solo en ella: ve los
+            // registros de sus máquinas y abre registros de su proceso. Calidad,
+            // jefe y gerente no tienen área y ven todas.
+            _areaUsuario = estado.User.AreaIdDe();
+            _areaUsuarioNombre = estado.User.AreaNombreDe();
+            _filtro.AreaId = _areaUsuario;
         }
 
         if (PestanaSolicitada is { Length: > 0 } pestana
@@ -611,7 +622,9 @@
     private string DescripcionModo => (_puedeLiberar, _puedeRegistrar) switch
     {
         (true, _) => "Modo Calidad · puede verificar, registrar no conformidades y liberar el producto.",
-        (false, true) => "Modo Operador · puede registrar la inspección, el setup y la producción por bobina.",
+        (false, true) => _areaUsuarioNombre is { Length: > 0 } area
+            ? $"Modo Operador · {TextosAdministracion.Area(area)} · puede registrar la inspección, el setup y la producción por bobina de su área."
+            : "Modo Operador · puede registrar la inspección, el setup y la producción por bobina.",
         _ => "Modo consulta · solo lectura."
     };
 
