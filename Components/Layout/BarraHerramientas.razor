@@ -1,5 +1,5 @@
 @using Microsoft.AspNetCore.Components.Authorization
-@implements IDisposable
+@implements IAsyncDisposable
 @inject AccionesPantalla Acciones
 @inject IJSRuntime JS
 
@@ -68,6 +68,7 @@
     private bool _actualizando;
     private bool _exportando;
     private bool _puedeVerReportes;
+    private IJSObjectReference? _impresionJs;
 
     /// <summary>
     /// El botón de exportar se queda visible aunque la pantalla no exporte, pero
@@ -131,11 +132,16 @@
     }
 
     /// <summary>
-    /// Imprime la pantalla tal como se ve, sin la barra de título, esta barra ni
-    /// el menú (lo resuelve css/impresion.css). En Certificados sale solo el
-    /// certificado, igual que con su propio botón de imprimir.
+    /// Imprime los datos de la pantalla en tablas con cuadrícula, como una hoja
+    /// de cálculo, y no como una captura de lo que se ve (lo arma js/impresion.js
+    /// con lo que ya está en pantalla, sin volver a consultar al servidor). En
+    /// Certificados sale solo el certificado, igual que con su propio botón.
     /// </summary>
-    private async Task ImprimirAsync() => await JS.InvokeVoidAsync("window.print");
+    private async Task ImprimirAsync()
+    {
+        _impresionJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/impresion.js");
+        await _impresionJs.InvokeVoidAsync("imprimir");
+    }
 
     /// <summary>
     /// La pantalla publica sus acciones mientras se dibuja ella misma, no esta
@@ -144,5 +150,20 @@
     /// </summary>
     private void AlCambiarAcciones() => _ = InvokeAsync(StateHasChanged);
 
-    public void Dispose() => Acciones.Cambio -= AlCambiarAcciones;
+    public async ValueTask DisposeAsync()
+    {
+        Acciones.Cambio -= AlCambiarAcciones;
+
+        if (_impresionJs is not null)
+        {
+            try
+            {
+                await _impresionJs.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // El circuito ya se cerró (pestaña cerrada): no hay módulo que liberar.
+            }
+        }
+    }
 }

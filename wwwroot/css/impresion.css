@@ -5,11 +5,21 @@
  * imprimir hay que ocultar el resto de la aplicación: la barra de título, la
  * barra de herramientas, el menú lateral y el panel maestro.
  *
- * Hay dos casos:
- *  - Cualquier pantalla (botón Imprimir de la barra de herramientas): sale el
- *    contenido tal como se ve, sin el marco de la aplicación alrededor.
+ * Hay tres casos:
+ *  - Botón Imprimir de la barra de herramientas: js/impresion.js arma un
+ *    documento aparte (#impresion-tabular) con los datos de la pantalla en
+ *    tablas con cuadrícula, y sale solo ese documento.
  *  - Una pantalla con un certificado abierto: sale SOLO el certificado, que
- *    debe llegar al papel sin nada de la pantalla alrededor. */
+ *    debe llegar al papel sin nada de la pantalla alrededor.
+ *  - Cualquier otra impresión (Ctrl+P, o una pantalla sin tablas ni campos):
+ *    sale el contenido tal como se ve, sin el marco de la aplicación. */
+
+/* El documento tabular existe solo mientras está abierto el diálogo de
+   impresión; en pantalla nunca se ve. */
+#impresion-tabular {
+    display: none;
+}
+
 @media print {
     /* ---------- Cualquier pantalla ---------- */
     .app-titlebar,
@@ -83,6 +93,95 @@
     #certificado-imprimible {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+    }
+
+    /* ---------- Documento tabular ----------
+     * Mientras existe, es lo único que sale: se ocultan todos los demás hijos de
+     * <body> (la aplicación completa, el aviso de reconexión, etc.). */
+    body:has(#impresion-tabular) > :not(#impresion-tabular) {
+        display: none !important;
+    }
+
+    body:has(#impresion-tabular) {
+        background: #fff !important;
+    }
+
+    #impresion-tabular {
+        display: block;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 9pt;
+        color: #000;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .it-cabecera {
+        border-bottom: 1.5pt solid #1f6fb2;
+        padding-bottom: 4pt;
+        margin-bottom: 8pt;
+    }
+
+    .it-empresa {
+        font-size: 8pt;
+        color: #1f6fb2;
+        font-weight: bold;
+    }
+
+    .it-titulo {
+        font-size: 14pt;
+        margin: 2pt 0;
+    }
+
+    .it-subtitulo,
+    .it-fecha {
+        margin: 0;
+        font-size: 8.5pt;
+        color: #333;
+    }
+
+    .it-bloque {
+        margin-bottom: 10pt;
+    }
+
+    .it-bloque__titulo {
+        font-size: 10.5pt;
+        margin: 0 0 3pt;
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    /* La cuadrícula de una hoja de cálculo: todas las celdas con borde, el
+       encabezado sombreado y repetido en cada página, y ninguna fila partida. */
+    .it-tabla {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .it-tabla th,
+    .it-tabla td {
+        border: 0.5pt solid #8c8c8c;
+        padding: 2pt 4pt;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .it-tabla th {
+        background: #dde7f2;
+        font-weight: bold;
+    }
+
+    .it-tabla .it-num {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .it-tabla thead {
+        display: table-header-group;
+    }
+
+    .it-tabla tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     @page {
