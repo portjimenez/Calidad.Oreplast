@@ -49,3 +49,8 @@
     font-size: 0.8rem;
     color: var(--op-texto-secundario, #5f6d6d);
 }
+
+.acceso-denegado__simulacion--centrada {
+    justify-content: center;
+    margin-bottom: 2rem;
+}

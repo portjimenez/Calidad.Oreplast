@@ -14,6 +14,9 @@ public class AccesoResultado
     public int? AreaId { get; set; }
     public string? AreaNombre { get; set; }
     public bool? Activo { get; set; }
+
+    /// <summary>Varios usuarios activos comparten la cuenta de dominio (operadores por turno).</summary>
+    public bool CuentaCompartida { get; set; }
 }
 
 public static class ResultadoAcceso
@@ -21,4 +24,7 @@ public static class ResultadoAcceso
     public const string Ok = "OK";
     public const string NoRegistrado = "NO_REGISTRADO";
     public const string Inactivo = "INACTIVO";
+
+    /// <summary>La cuenta es compartida y falta saber quién está trabajando.</summary>
+    public const string ElegirPerfil = "ELEGIR_PERFIL";
 }

@@ -1,15 +1,18 @@
 @* Solo se renderiza en Development. Cambia de usuario/rol simulado con una navegación real
    (GET /dev/simular), igual que un login real, para que la autorización a nivel de página
-   (AuthorizeRouteView/FallbackPolicy) se re-evalúe correctamente. *@
+   (AuthorizeRouteView/FallbackPolicy) se re-evalúe correctamente. Cada opción lleva la cuenta
+   Y la persona: si la cuenta es compartida por operadores de distintos turnos, elige también
+   el perfil y se salta "¿Quién está trabajando?". *@
 @using calidad_app.Models.Administracion
 @inject SimuladorIdentidadService Simulador
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IAccesoActualInfo AccesoInfo
 
 <select class="selector-usuario-simulado" title="Usuario simulado (solo desarrollo)"
-        onchange="location.href='/dev/simular?usuario=' + encodeURIComponent(this.value)">
+        onchange="location.href=this.value">
     @foreach (var usuario in _usuarios)
     {
-        <option value="@usuario.UsuarioDominio" selected="@(usuario.UsuarioDominio == _actual)">
+        <option value="@Enlace(usuario)" selected="@EsActual(usuario)">
             @Etiqueta(usuario)
         </option>
     }
@@ -18,11 +21,37 @@
 @code {
     private List<UsuarioSimulado> _usuarios = new();
     private string? _actual;
+    private int? _actualId;
+    private HashSet<string> _compartidas = new(StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {
         _actual = HttpContextAccessor.HttpContext?.Request.Cookies[SimulacionConstantes.CookieUsuario];
+        _actualId = AccesoInfo.UltimoResultado?.UsuarioId;
         _usuarios = await Simulador.ObtenerUsuariosDisponiblesAsync(_actual);
+        _compartidas = _usuarios
+            .GroupBy(u => u.UsuarioDominio, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Con el usuario resuelto se marca por su id (en una cuenta compartida varias opciones
+    /// tienen la misma cuenta); si todavía no hay uno (cuenta sin perfil elegido o rechazada),
+    /// por la cuenta.
+    /// </summary>
+    private bool EsActual(UsuarioSimulado usuario) =>
+        _actualId is { } id
+            ? usuario.UsuarioId == id
+            : string.Equals(usuario.UsuarioDominio, _actual, StringComparison.OrdinalIgnoreCase);
+
+    private string Enlace(UsuarioSimulado usuario)
+    {
+        var enlace = $"/dev/simular?usuario={Uri.EscapeDataString(usuario.UsuarioDominio)}";
+        return _compartidas.Contains(usuario.UsuarioDominio)
+            ? $"{enlace}&perfil={usuario.UsuarioId}"
+            : enlace;
     }
 
     /// <summary>

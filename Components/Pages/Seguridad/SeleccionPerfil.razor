@@ -1,0 +1,78 @@
+@* "¿Quién está trabajando?": la cuenta de Windows la comparten varios operadores (rotan por
+   turnos en la misma PC) y la aplicación necesita saber cuál de ellos firma lo que se
+   registre. La muestra AccesoNoAutorizado cuando seg.usp_Usuario_ValidarAcceso responde
+   ELEGIR_PERFIL.
+
+   Es un <form> HTML que se envía a POST /perfil/elegir, no un evento de Blazor: mientras no
+   se elige, el usuario es anónimo y la página llega sin circuito interactivo. Un botón por
+   persona, grande, porque en planta se usa en pantallas táctiles y con guantes. *@
+@using Microsoft.AspNetCore.Diagnostics
+@using calidad_app.Models.Administracion
+@inject IAccesoActualInfo AccesoInfo
+@inject IAuthService AuthService
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navegacion
+
+<div class="seleccion-perfil">
+    <h1 class="seleccion-perfil__titulo">¿Quién está trabajando?</h1>
+
+    <p class="seleccion-perfil__explicacion">
+        La cuenta <strong>@_cuenta</strong> la comparten varios operadores. Elija su nombre:
+        las inspecciones y registros que capture quedarán a su nombre.
+    </p>
+
+    @if (_perfiles.Count == 0)
+    {
+        <div class="seleccion-perfil__vacio">
+            La cuenta ya no tiene operadores activos. Recargue la página o contacte al
+            administrador del sistema.
+        </div>
+    }
+    else
+    {
+        <form class="seleccion-perfil__lista" method="post" action="/perfil/elegir">
+            <AntiforgeryToken />
+            <input type="hidden" name="volver" value="@_volver" />
+
+            @foreach (var perfil in _perfiles)
+            {
+                <button type="submit" name="usuarioId" value="@perfil.UsuarioId" class="seleccion-perfil__opcion">
+                    <span class="seleccion-perfil__nombre">@perfil.Codigo - @perfil.NombreCompleto</span>
+                    <span class="seleccion-perfil__detalle">@Detalle(perfil)</span>
+                </button>
+            }
+        </form>
+    }
+
+    <p class="seleccion-perfil__pista">
+        Al terminar su turno use <strong>Cambiar de usuario</strong>, en la barra superior,
+        para que el siguiente operador elija su nombre.
+    </p>
+</div>
+
+@code {
+    private List<PerfilCuenta> _perfiles = new();
+    private string _cuenta = string.Empty;
+    private string _volver = "/";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cuenta = AccesoInfo.UltimoResultado?.UsuarioDominio ?? string.Empty;
+        if (_cuenta.Length > 0)
+        {
+            _perfiles = await AuthService.ObtenerPerfilesDeCuentaAsync(_cuenta);
+        }
+
+        // La primera carga llega reejecutada como /estado-http/401 (ver EstadoHttp): para volver
+        // a la pantalla que se pidió hay que leer la ruta ORIGINAL de la petición.
+        var original = HttpContextAccessor.HttpContext?.Features.Get<IStatusCodeReExecuteFeature>();
+        _volver = original is not null
+            ? original.OriginalPath + original.OriginalQueryString
+            : "/" + Navegacion.ToBaseRelativePath(Navegacion.Uri);
+    }
+
+    private static string Detalle(PerfilCuenta perfil) =>
+        string.IsNullOrEmpty(perfil.AreaNombre)
+            ? perfil.RolNombre
+            : $"{perfil.RolNombre} · {TextosAdministracion.Area(perfil.AreaNombre)}";
+}

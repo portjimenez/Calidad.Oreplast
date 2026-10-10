@@ -6,13 +6,13 @@ namespace calidad_app.Services.Seguridad;
 
 public class AuthService(IDbContextFactory<AppDbContext> dbFactory) : IAuthService
 {
-    public async Task<AccesoResultado> ValidarAccesoAsync(string usuarioDominio, string? direccionIp)
+    public async Task<AccesoResultado> ValidarAccesoAsync(string usuarioDominio, string? direccionIp, int? usuarioElegidoId = null)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var resultado = await db.AccesoResultados
             .FromSqlInterpolated(
-                $"EXEC seg.usp_Usuario_ValidarAcceso @UsuarioDominio = {usuarioDominio}, @DireccionIp = {direccionIp}")
+                $"EXEC seg.usp_Usuario_ValidarAcceso @UsuarioDominio = {usuarioDominio}, @DireccionIp = {direccionIp}, @UsuarioElegidoId = {usuarioElegidoId}")
             .AsNoTracking()
             .ToListAsync();
 
@@ -25,6 +25,16 @@ public class AuthService(IDbContextFactory<AppDbContext> dbFactory) : IAuthServi
 
         return await db.PermisosUsuario
             .FromSqlInterpolated($"EXEC seg.usp_Usuario_ObtenerPermisos @UsuarioId = {usuarioId}")
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    public async Task<List<PerfilCuenta>> ObtenerPerfilesDeCuentaAsync(string usuarioDominio)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        return await db.PerfilesCuenta
+            .FromSqlInterpolated($"EXEC seg.usp_Usuario_PerfilesDeCuenta @UsuarioDominio = {usuarioDominio}")
             .AsNoTracking()
             .ToListAsync();
     }

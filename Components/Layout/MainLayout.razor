@@ -20,6 +20,18 @@
                     <span class="app-titlebar__usuario-nombre">
                         @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value · @context.User.Identity?.Name
                     </span>
+                    @* Cuenta compartida por operadores de distintos turnos: el cambio de turno
+                       olvida el perfil elegido y vuelve a preguntar quién trabaja. Navegación
+                       completa (forceLoad) porque /perfil/cambiar no es una página de Blazor. *@
+                    @if (context.User.TieneCuentaCompartida())
+                    {
+                        <button type="button" class="app-titlebar__cambiar-usuario"
+                                title="Cambio de turno: elegir otro operador de esta cuenta"
+                                @onclick='() => Navegacion.NavigateTo("/perfil/cambiar", forceLoad: true)'>
+                            <i class="fa-solid fa-user-group" aria-hidden="true"></i>
+                            Cambiar de usuario
+                        </button>
+                    }
                 </Authorized>
                 <NotAuthorized>
                     <span class="app-titlebar__usuario-nombre">Sin sesión</span>

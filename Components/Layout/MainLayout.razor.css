@@ -71,6 +71,24 @@
     font-weight: 600;
 }
 
+.app-titlebar__cambiar-usuario {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.app-titlebar__cambiar-usuario:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
 .app-titlebar__usuario ::deep .selector-usuario-simulado {
     background: rgba(255, 255, 255, 0.15);
     border-color: rgba(255, 255, 255, 0.4);

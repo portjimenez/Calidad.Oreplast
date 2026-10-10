@@ -14,6 +14,15 @@ public static class ClaimsUsuario
     public const string AreaNombre = "area_nombre";
 
     /// <summary>
+    /// Presente cuando varios usuarios activos comparten la cuenta de dominio: la barra de
+    /// título ofrece entonces "Cambiar de usuario" para el cambio de turno.
+    /// </summary>
+    public const string CuentaCompartida = "cuenta_compartida";
+
+    public static bool TieneCuentaCompartida(this ClaimsPrincipal usuario) =>
+        usuario.HasClaim(c => c.Type == CuentaCompartida);
+
+    /// <summary>
     /// Área a la que pertenece el usuario, o null si no tiene (Calidad, Jefe y Gerente de
     /// Producción, Administrador). Las pantallas de captura la usan para mostrar solo las
     /// máquinas, procesos y registros de esa área; no es un permiso.

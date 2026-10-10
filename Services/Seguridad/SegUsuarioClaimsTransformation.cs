@@ -31,13 +31,17 @@ public class SegUsuarioClaimsTransformation(
 
         var httpContext = httpContextAccessor.HttpContext;
         var direccionIp = httpContext?.Connection.RemoteIpAddress?.ToString();
-        var resultado = await authService.ValidarAccesoAsync(usuarioDominio, direccionIp);
+        // En una cuenta compartida, la persona elegida en "¿Quién está trabajando?".
+        var usuarioElegidoId = httpContext is null ? null : PerfilElegido.Leer(httpContext.Request);
+        var resultado = await authService.ValidarAccesoAsync(usuarioDominio, direccionIp, usuarioElegidoId);
 
         if (httpContext is not null)
         {
             httpContext.Items["AccesoResultado"] = resultado;
         }
 
+        // ELEGIR_PERFIL también llega aquí como no autorizado: AccesoNoAutorizado muestra
+        // entonces la pantalla para elegir quién trabaja en lugar del mensaje de rechazo.
         if (!resultado.Autorizado || resultado.UsuarioId is null)
         {
             return new ClaimsPrincipal(new ClaimsIdentity());
@@ -56,6 +60,10 @@ public class SegUsuarioClaimsTransformation(
         {
             claims.Add(new Claim(ClaimsUsuario.AreaId, areaId.ToString()));
             claims.Add(new Claim(ClaimsUsuario.AreaNombre, resultado.AreaNombre ?? string.Empty));
+        }
+        if (resultado.CuentaCompartida)
+        {
+            claims.Add(new Claim(ClaimsUsuario.CuentaCompartida, "1"));
         }
 
         claims.AddRange(permisos.Select(p => new Claim("permiso", p.Clave)));

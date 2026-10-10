@@ -8,6 +8,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AccesoResultado> AccesoResultados => Set<AccesoResultado>();
     public DbSet<PermisoUsuario> PermisosUsuario => Set<PermisoUsuario>();
     public DbSet<UsuarioSimulado> UsuariosSimulados => Set<UsuarioSimulado>();
+    public DbSet<PerfilCuenta> PerfilesCuenta => Set<PerfilCuenta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -15,5 +16,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<AccesoResultado>().HasNoKey();
         modelBuilder.Entity<PermisoUsuario>().HasNoKey();
         modelBuilder.Entity<UsuarioSimulado>().HasNoKey();
+        modelBuilder.Entity<PerfilCuenta>().HasNoKey();
     }
 }

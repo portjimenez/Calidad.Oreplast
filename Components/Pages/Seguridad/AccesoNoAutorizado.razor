@@ -1,6 +1,21 @@
 @inject IAccesoActualInfo AccesoInfo
 @inject IWebHostEnvironment Entorno
 
+@* Una cuenta compartida sin perfil elegido no es un rechazo: falta saber quién trabaja. *@
+@if (AccesoInfo.UltimoResultado?.Resultado == ResultadoAcceso.ElegirPerfil)
+{
+    <SeleccionPerfil />
+
+    @if (Entorno.IsDevelopment())
+    {
+        <div class="acceso-denegado__simulacion acceso-denegado__simulacion--centrada">
+            <span>Probar con otro usuario simulado:</span>
+            <SelectorUsuarioSimulado />
+        </div>
+    }
+    return;
+}
+
 <div class="acceso-denegado">
     <svg class="acceso-denegado__icono" viewBox="0 0 42 38" aria-hidden="true">
         <path d="M21 2 L41 36 L1 36 Z" fill="#f6b93b" stroke="#e5a11f" stroke-width="2" stroke-linejoin="round" />

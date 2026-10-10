@@ -11,6 +11,7 @@ using calidad_app.Services.Seguridad;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -147,13 +148,42 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+// Cuenta de dominio compartida (operadores por turno): "¿Quién está trabajando?" es un
+// formulario HTML normal y no un evento de Blazor, porque mientras no se elige perfil el
+// usuario es anónimo y la página se sirve sin circuito interactivo. Son anónimos por la misma
+// razón; no dan acceso por sí solos: seg.usp_Usuario_ValidarAcceso solo acepta el perfil si
+// es un usuario activo de la misma cuenta que Windows autenticó. El POST exige el token
+// antiforgery (lo pone <AntiforgeryToken /> en SeleccionPerfil).
+app.MapPost("/perfil/elegir", ([FromForm] int usuarioId, [FromForm] string? volver, HttpContext ctx) =>
+{
+    PerfilElegido.Guardar(ctx, usuarioId);
+    return Results.Redirect(PerfilElegido.DestinoSeguro(volver));
+}).AllowAnonymous();
+
+// Cambio de turno: olvida el perfil elegido y vuelve a preguntar.
+app.MapGet("/perfil/cambiar", (HttpContext ctx) =>
+{
+    PerfilElegido.Borrar(ctx);
+    return Results.Redirect("/");
+}).AllowAnonymous();
+
 if (app.Environment.IsDevelopment())
 {
     // Cambia/borra la cookie del usuario simulado con una navegación real (igual que un login
     // real), para que la petición completa vuelva a pasar por autenticación/autorización.
-    app.MapGet("/dev/simular", (string usuario, HttpContext ctx) =>
+    // "perfil" elige además a la persona cuando la cuenta es compartida; sin él se borra el
+    // perfil anterior, que era de otra cuenta.
+    app.MapGet("/dev/simular", (string usuario, int? perfil, HttpContext ctx) =>
     {
         ctx.Response.Cookies.Append(SimulacionConstantes.CookieUsuario, usuario);
+        if (perfil is { } usuarioId)
+        {
+            PerfilElegido.Guardar(ctx, usuarioId);
+        }
+        else
+        {
+            PerfilElegido.Borrar(ctx);
+        }
         var volver = ctx.Request.Headers.Referer.FirstOrDefault() ?? "/";
         return Results.Redirect(volver);
     }).AllowAnonymous();
@@ -161,6 +191,7 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/dev/salir", (HttpContext ctx) =>
     {
         ctx.Response.Cookies.Delete(SimulacionConstantes.CookieUsuario);
+        PerfilElegido.Borrar(ctx);
         return Results.Redirect("/");
     }).AllowAnonymous();
 }

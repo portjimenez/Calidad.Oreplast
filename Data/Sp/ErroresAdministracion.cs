@@ -20,7 +20,8 @@ internal static class ErroresAdministracion
         [50404] = "La cuenta de dominio debe tener el formato DOMINIO\\usuario (por ejemplo OREPLAST\\mlopez).",
         [50405] = "El usuario indicado no existe.",
         [50406] = "Ya existe otro usuario con ese código de colaborador.",
-        [50407] = "Ya existe otro usuario con esa cuenta de dominio.",
+        [50407] = "Esa cuenta de dominio ya la tiene otro usuario activo. Solo los operadores "
+                + "pueden compartir cuenta (por ejemplo, la de la PC de una máquina).",
         [50408] = "El rol indicado no existe.",
         [50409] = "El área indicada no existe o está inactiva.",
         [50410] = "No puede cambiar su propio rol.",
@@ -28,6 +29,8 @@ internal static class ErroresAdministracion
         [50413] = "El usuario tiene turnos de operador programados que aún no se trabajan. "
                 + "El Jefe de Producción debe reasignarlos antes de continuar.",
         [50414] = "El usuario ya se encuentra en ese estado.",
+        [50415] = "Mientras estuvo de baja, su cuenta de dominio pasó a otro usuario activo. "
+                + "Cámbiele la cuenta antes de reactivarlo.",
 
         // Roles y permisos
         [50421] = "La lista de permisos enviada no es válida.",

@@ -1,0 +1,81 @@
+.seleccion-perfil {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 640px;
+    margin: 4rem auto;
+    padding: 0 1.5rem;
+    text-align: center;
+    gap: 1.25rem;
+}
+
+.seleccion-perfil__titulo {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--op-azul, #1f6fb2);
+}
+
+.seleccion-perfil__explicacion {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--op-texto, #1c2626);
+}
+
+.seleccion-perfil__lista {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.seleccion-perfil__opcion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    width: 100%;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--op-borde, #c9d1d1);
+    border-left: 4px solid var(--op-azul, #1f6fb2);
+    border-radius: 4px;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+}
+
+.seleccion-perfil__opcion:hover,
+.seleccion-perfil__opcion:focus-visible {
+    background: var(--op-seleccion, #e3eef8);
+    outline: none;
+}
+
+.seleccion-perfil__nombre {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--op-texto, #1c2626);
+}
+
+.seleccion-perfil__detalle {
+    font-size: 0.82rem;
+    color: var(--op-texto-secundario, #5f6d6d);
+}
+
+.seleccion-perfil__vacio {
+    width: 100%;
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    background: var(--op-advertencia-bg, #fdf3dc);
+    color: var(--op-advertencia-fg, #8a5a00);
+    font-size: 0.95rem;
+}
+
+.seleccion-perfil__pista {
+    width: 100%;
+    margin: 0;
+    padding: 0.85rem 1.1rem;
+    border-radius: 2px;
+    background: var(--op-neutro-bg, #eceeee);
+    color: var(--op-texto, #1c2626);
+    font-size: 0.9rem;
+}
