@@ -334,6 +334,18 @@
     gap: 0.4rem;
 }
 
+/* Alta de cliente dentro del formulario de la orden: recuadro con sangría
+   para que se lea como parte del campo Cliente y no como otro campo más. */
+.cliente-nuevo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+    border-left: 3px solid var(--op-azul);
+    background: var(--op-fondo);
+    border-radius: 3px;
+}
+
 /* La reapertura exige motivo, así que el campo va pegado a su botón: separarlos
    haría parecer que el botón funciona sin llenarlo. */
 .reapertura {

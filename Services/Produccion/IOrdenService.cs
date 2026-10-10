@@ -50,4 +50,12 @@ public interface IOrdenService
     /// </summary>
     Task CambiarEstadoAsync(
         int ordenId, string estado, string? motivo = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Alta de un cliente desde el formulario de nueva orden, para el pedido
+    /// de un cliente que todavía no está en el catálogo. Exige el mismo
+    /// permiso que la orden; el código (CLI-NNNN) lo genera la base. Devuelve
+    /// el cliente ya creado, listo para agregarlo a la lista y seleccionarlo.
+    /// </summary>
+    Task<ClienteOpcion> CrearClienteAsync(string nombre, CancellationToken ct = default);
 }

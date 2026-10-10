@@ -80,6 +80,24 @@ public class OrdenService(
             ct);
     }
 
+    public async Task<ClienteOpcion> CrearClienteAsync(string nombre, CancellationToken ct = default)
+    {
+        var usuarioId = await usuarioActual.ObtenerIdAsync();
+
+        // El SP siempre devuelve la fila creada o lanza su error (que el
+        // ejecutor traduce con ErroresProduccion): no hay caso "sin fila".
+        return await sp.ConsultarAsync(
+            "cat.usp_Cliente_Crear",
+            cmd => cmd
+                .Con("@Nombre", nombre)
+                .Con("@UsuarioId", usuarioId)
+                .Con("@DireccionIp", auditoria.DireccionIp),
+            async (lector, token) =>
+                await lector.LeerUnoAsync(MapeosProduccion.ClienteOpcion, token)
+                ?? throw new InvalidOperationException("cat.usp_Cliente_Crear no devolvió el cliente."),
+            ct);
+    }
+
     /// <summary>
     /// Los cinco conjuntos del expediente: encabezado, registros de
     /// inspección, lotes, bobinas y no conformidades. EF Core solo sabe leer

@@ -169,15 +169,49 @@
 
                         <label class="campo">
                             <span>Cliente</span>
-                            <select value="@_edicion.ClienteId" disabled="@_bloqueaProductoYCliente"
-                                    @onchange="e => _edicion.ClienteId = LeerId(e)">
+                            <select value="@(_ingresandoCliente ? OpcionClienteNuevo : _edicion.ClienteId)"
+                                    disabled="@(_bloqueaProductoYCliente || _guardando)"
+                                    @onchange="ElegirCliente">
                                 <option value="0">Elija un cliente…</option>
+                                @* Solo en el alta: el pedido de un cliente que aún no está
+                                   en el catálogo no debe detener la orden. Va arriba de la
+                                   lista para no tener que recorrer los 130 clientes. *@
+                                @if (_edicion.OrdenId == 0)
+                                {
+                                    <option value="@OpcionClienteNuevo">+ Ingresar nuevo cliente…</option>
+                                }
                                 @foreach (var cliente in _selectores.Clientes)
                                 {
                                     <option value="@cliente.ClienteId">@cliente.Etiqueta</option>
                                 }
                             </select>
                         </label>
+
+                        @if (_ingresandoCliente)
+                        {
+                            <div class="cliente-nuevo">
+                                <label class="campo">
+                                    <span>Nombre del cliente nuevo</span>
+                                    <input type="text" maxlength="120" placeholder="Razón social…"
+                                           value="@_nombreClienteNuevo"
+                                           @oninput="e => _nombreClienteNuevo = e.Value?.ToString() ?? string.Empty" />
+                                </label>
+                                <p class="ficha__pista">
+                                    El código (CLI-NNNN) lo asigna el sistema.
+                                </p>
+                                <div class="ficha__acciones">
+                                    <button type="button" class="boton boton--primario"
+                                            disabled="@(_guardando || string.IsNullOrWhiteSpace(_nombreClienteNuevo))"
+                                            @onclick="AgregarClienteAsync">
+                                        @(_guardando ? "Agregando…" : "Agregar cliente")
+                                    </button>
+                                    <button type="button" class="boton boton--fantasma"
+                                            disabled="@_guardando" @onclick="CancelarClienteNuevo">
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        }
 
                         <label class="campo">
                             <span>Buscar producto</span>
@@ -610,6 +644,15 @@
     /// </summary>
     private bool _bloqueaProductoYCliente;
 
+    /// <summary>
+    /// Valor de la opción "+ Ingresar nuevo cliente…" en la lista. Negativo
+    /// para que no choque con ningún ClienteId real.
+    /// </summary>
+    private const int OpcionClienteNuevo = -1;
+
+    private bool _ingresandoCliente;
+    private string _nombreClienteNuevo = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         if (EstadoAutenticacion is not null)
@@ -721,6 +764,7 @@
         _modoEdicion = true;
         _error = null;
         _aviso = null;
+        CancelarClienteNuevo();
     }
 
     private void AbrirEdicion()
@@ -744,12 +788,74 @@
         _modoEdicion = true;
         _error = null;
         _aviso = null;
+        CancelarClienteNuevo();
     }
 
     private void CerrarEdicion()
     {
         _modoEdicion = false;
         _error = null;
+        CancelarClienteNuevo();
+    }
+
+    /// <summary>
+    /// La lista de clientes con su opción extra: elegir "+ Ingresar nuevo
+    /// cliente…" no cambia el cliente de la orden, solo abre el campo.
+    /// </summary>
+    private void ElegirCliente(ChangeEventArgs e)
+    {
+        var id = LeerId(e);
+
+        if (id == OpcionClienteNuevo)
+        {
+            _ingresandoCliente = true;
+            _nombreClienteNuevo = string.Empty;
+            return;
+        }
+
+        CancelarClienteNuevo();
+        _edicion.ClienteId = id;
+    }
+
+    /// <summary>
+    /// Da de alta el cliente en ese momento (no al guardar la orden) y lo deja
+    /// seleccionado. Si después se cancela la orden, el cliente queda en el
+    /// catálogo: es un cliente real, que tendrá pedidos.
+    /// </summary>
+    private async Task AgregarClienteAsync()
+    {
+        _guardando = true;
+        _error = null;
+        _aviso = null;
+
+        try
+        {
+            var cliente = await Ordenes.CrearClienteAsync(_nombreClienteNuevo);
+
+            // Se inserta en su lugar alfabético, sin volver a pedir los
+            // selectores: así no se pierde lo ya capturado en el formulario.
+            var posicion = _selectores.Clientes.FindIndex(c =>
+                string.Compare(c.Nombre, cliente.Nombre, StringComparison.CurrentCultureIgnoreCase) > 0);
+            _selectores.Clientes.Insert(posicion < 0 ? _selectores.Clientes.Count : posicion, cliente);
+
+            _edicion.ClienteId = cliente.ClienteId;
+            _aviso = $"Cliente {cliente.Codigo} - {cliente.Nombre} agregado.";
+            CancelarClienteNuevo();
+        }
+        catch (Exception ex)
+        {
+            _error = Traducir(ex);
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void CancelarClienteNuevo()
+    {
+        _ingresandoCliente = false;
+        _nombreClienteNuevo = string.Empty;
     }
 
     private async Task BuscarProductoAsync(ChangeEventArgs e)

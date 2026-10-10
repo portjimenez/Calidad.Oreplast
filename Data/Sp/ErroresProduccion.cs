@@ -29,6 +29,11 @@ internal static class ErroresProduccion
         [50313] = "Para reabrir una orden cerrada debe indicarse el motivo.",
         [50314] = "No se puede cerrar la orden: tiene lotes que Calidad todavía no ha liberado.",
 
+        // Cliente nuevo desde el formulario de la orden
+        [50315] = "El nombre del cliente es obligatorio.",
+        [50316] = "Ya existe un cliente con ese nombre.",
+        [50317] = "El nombre del cliente no puede pasar de 120 caracteres.",
+
         // Asignación operador - máquina - turno
         [50320] = "No tiene autorización para asignar operadores.",
         [50321] = "La asignación indicada no existe.",
