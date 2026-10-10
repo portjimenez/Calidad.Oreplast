@@ -150,7 +150,8 @@ public class ReporteService(
         var tabla = new TablaReporte
         {
             Titulo = definicion.Nombre,
-            Subtitulo = Describir(filtro, ambito, filas.Count),
+            Subtitulo = Describir(filtro, ambito ?? "Toda la planta", filas.Count),
+            SubtituloArchivo = Describir(filtro, ambito, filas: null),
             Columnas = Columnas(reporte),
             Filas = filas.Select(f => Valores(reporte, f!)).ToList()
         };
@@ -166,7 +167,11 @@ public class ReporteService(
         return tabla;
     }
 
-    private static string Describir(FiltroReporte filtro, string? ambito, int filas)
+    /// <summary>
+    /// Periodo · filtros · filas. El archivo pasa <paramref name="filas"/> nulo:
+    /// ahí el número de filas sobra (se ven) y sin filtros no se dice nada.
+    /// </summary>
+    private static string Describir(FiltroReporte filtro, string? ambito, int? filas)
     {
         var partes = new List<string> { $"Periodo del {filtro.DescribirPeriodo()}" };
 
@@ -175,7 +180,10 @@ public class ReporteService(
             partes.Add(ambito);
         }
 
-        partes.Add(filas == 1 ? "1 fila" : $"{filas:N0} filas");
+        if (filas is { } total)
+        {
+            partes.Add(total == 1 ? "1 fila" : $"{total:N0} filas");
+        }
 
         return string.Join(" · ", partes);
     }

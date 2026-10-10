@@ -22,11 +22,18 @@ namespace calidad_app.Services.Reportes;
 /// limpiar nada primero. El formato (miles, decimales, fecha) se aplica como
 /// formato de celda.
 /// </summary>
-public class ExportadorArchivos
+public class ExportadorArchivos(IWebHostEnvironment entorno)
 {
-    /// <summary>Azul del tema de la aplicación, para el encabezado de las tablas.</summary>
-    private static readonly XLColor AzulExcel = XLColor.FromArgb(0x1F, 0x6F, 0xB2);
-    private static readonly Color AzulPdf = new(0x1F, 0x6F, 0xB2);
+    /// <summary>
+    /// Gris del encabezado de las tablas. Los archivos van en blanco y negro
+    /// (se imprimen así en la planta): gris claro con letra negra se lee bien
+    /// en cualquier impresora, y un azul se volvería un gris oscuro sin control.
+    /// </summary>
+    private static readonly XLColor GrisExcel = XLColor.FromArgb(0xD9, 0xD9, 0xD9);
+    private static readonly Color GrisPdf = new(0xD9, 0xD9, 0xD9);
+
+    /// <summary>Logotipo para la esquina superior izquierda del PDF (el de la barra de título).</summary>
+    private string RutaLogo => Path.Combine(entorno.WebRootPath, "img", "Logo-Oreplast-Mail.jpg");
 
     public const string TipoExcel =
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -69,7 +76,7 @@ public class ExportadorArchivos
         hoja.Cell(1, 1).Style.Font.Bold = true;
         hoja.Cell(1, 1).Style.Font.FontSize = 14;
 
-        hoja.Cell(2, 1).Value = tabla.Subtitulo;
+        hoja.Cell(2, 1).Value = tabla.SubtituloArchivo;
         hoja.Cell(2, 1).Style.Font.FontColor = XLColor.Gray;
 
         if (columnas > 1)
@@ -85,8 +92,8 @@ public class ExportadorArchivos
             var celda = hoja.Cell(filaEncabezado, c + 1);
             celda.Value = tabla.Columnas[c].Titulo;
             celda.Style.Font.Bold = true;
-            celda.Style.Font.FontColor = XLColor.White;
-            celda.Style.Fill.BackgroundColor = AzulExcel;
+            celda.Style.Font.FontColor = XLColor.Black;
+            celda.Style.Fill.BackgroundColor = GrisExcel;
             celda.Style.Alignment.WrapText = true;
         }
 
@@ -174,7 +181,7 @@ public class ExportadorArchivos
     /* ------------------------------------------------------------------
        PDF
        ------------------------------------------------------------------ */
-    private static byte[] Pdf(TablaReporte tabla)
+    private byte[] Pdf(TablaReporte tabla)
     {
         _ = FuentesListas.Value;
 
@@ -185,20 +192,33 @@ public class ExportadorArchivos
         var seccion = documento.AddSection();
 
         // Horizontal: estos reportes tienen muchas columnas y en vertical
-        // saldrían ilegibles.
-        seccion.PageSetup.Orientation = Orientation.Landscape;
-        seccion.PageSetup.PageFormat = PageFormat.A4;
+        // saldrían ilegibles. La hoja A4 se da con medidas explícitas (más
+        // ancha que alta) en vez de PageFormat + Orientation: con esas dos,
+        // PageWidth queda sin valor hasta el renderizado y el cálculo del
+        // ancho útil de AgregarTabla daba casi cero (columnas de milímetros).
+        seccion.PageSetup.PageWidth = Unit.FromCentimeter(29.7);
+        seccion.PageSetup.PageHeight = Unit.FromCentimeter(21);
         seccion.PageSetup.LeftMargin = Unit.FromCentimeter(1.2);
         seccion.PageSetup.RightMargin = Unit.FromCentimeter(1.2);
         seccion.PageSetup.TopMargin = Unit.FromCentimeter(1.2);
         seccion.PageSetup.BottomMargin = Unit.FromCentimeter(1.2);
 
+        // Logotipo arriba a la izquierda, solo en la primera hoja (como
+        // membrete). Si el archivo faltara, el reporte sale igual, sin él.
+        if (File.Exists(RutaLogo))
+        {
+            var membrete = seccion.AddParagraph();
+            membrete.Format.SpaceAfter = Unit.FromCentimeter(0.2);
+            var logo = membrete.AddImage(RutaLogo);
+            logo.Height = Unit.FromCentimeter(1.6);
+            logo.LockAspectRatio = true;
+        }
+
         var titulo = seccion.AddParagraph(tabla.Titulo);
         titulo.Format.Font.Size = 14;
         titulo.Format.Font.Bold = true;
-        titulo.Format.Font.Color = AzulPdf;
 
-        var subtitulo = seccion.AddParagraph(tabla.Subtitulo);
+        var subtitulo = seccion.AddParagraph(tabla.SubtituloArchivo);
         subtitulo.Format.Font.Size = 8;
         subtitulo.Format.Font.Color = Colors.Gray;
         subtitulo.Format.SpaceAfter = Unit.FromCentimeter(0.3);
@@ -258,9 +278,9 @@ public class ExportadorArchivos
 
         var encabezado = migra.AddRow();
         encabezado.HeadingFormat = true;   // se repite en cada página
-        encabezado.Shading.Color = AzulPdf;
+        encabezado.Shading.Color = GrisPdf;
         encabezado.Format.Font.Bold = true;
-        encabezado.Format.Font.Color = Colors.White;
+        encabezado.Format.Font.Color = Colors.Black;
 
         for (var c = 0; c < tabla.Columnas.Count; c++)
         {
@@ -294,9 +314,7 @@ public class ExportadorArchivos
         pie.Format.Font.Size = 7;
         pie.Format.Font.Color = Colors.Gray;
         pie.Format.Alignment = ParagraphAlignment.Center;
-        pie.AddText("Oreplast S.A. · Sistema de Control de Calidad · Generado el ");
-        pie.AddDateField("dd/MM/yyyy HH:mm");
-        pie.AddText("  ·  Página ");
+        pie.AddText("Página ");
         pie.AddPageField();
         pie.AddText(" de ");
         pie.AddNumPagesField();

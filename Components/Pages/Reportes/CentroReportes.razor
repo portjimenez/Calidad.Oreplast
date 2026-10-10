@@ -563,7 +563,9 @@
         if (_filtro.SoloCriticas) partes.Add("solo críticas");
         if (_filtro.SoloSinCertificado) partes.Add("solo sin certificado");
 
-        return partes.Count == 0 ? "Toda la planta" : string.Join(", ", partes);
+        // Sin filtros, nulo: la pantalla dice "Toda la planta" (ReporteService)
+        // y el archivo descargado no dice nada.
+        return partes.Count == 0 ? null : string.Join(", ", partes);
     }
 
     private async Task CambiarReporteAsync(string clave)

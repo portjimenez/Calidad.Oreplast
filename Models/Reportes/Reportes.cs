@@ -262,8 +262,17 @@ public class TablaReporte
 {
     public string Titulo { get; set; } = string.Empty;
 
-    /// <summary>El periodo y los filtros aplicados, para que el archivo se explique solo.</summary>
+    /// <summary>
+    /// El periodo, los filtros aplicados y el número de filas, para la
+    /// pantalla y la bitácora de descargas.
+    /// </summary>
     public string Subtitulo { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Lo que va bajo el título en el Excel y el PDF: el periodo y, solo si
+    /// los hay, los filtros (sin "Toda la planta" ni el número de filas).
+    /// </summary>
+    public string SubtituloArchivo { get; set; } = string.Empty;
 
     public List<ColumnaReporte> Columnas { get; set; } = [];
     public List<object?[]> Filas { get; set; } = [];

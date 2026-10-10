@@ -42,16 +42,26 @@ export function imprimir() {
         return;
     }
 
-    document.body.appendChild(construirDocumento(lectura.titulo, lectura.subtitulo, bloques));
+    const documento = construirDocumento(lectura.titulo, lectura.subtitulo, bloques);
+    document.body.appendChild(documento);
     window.addEventListener("afterprint", retirarDocumento, { once: true });
-    lanzarImpresion();
+    lanzarImpresion(documento.querySelector(".it-logo"));
 }
 
 // window.print() detiene el script hasta que se cierra el diálogo, y la llamada
 // desde Blazor Server caduca al minuto: con el diálogo abierto más tiempo, la
 // barra recibiría un error. Se difiere para que la llamada regrese enseguida.
-function lanzarImpresion() {
-    setTimeout(() => window.print(), 0);
+// Si hay logotipo se espera a que termine de cargar (o falle): sin esa espera,
+// el diálogo puede abrirse con el hueco de la imagen todavía vacío.
+function lanzarImpresion(logo) {
+    const listo = !logo || logo.complete
+        ? Promise.resolve()
+        : new Promise(resolver => {
+            logo.addEventListener("load", resolver, { once: true });
+            logo.addEventListener("error", resolver, { once: true });
+        });
+
+    listo.then(() => setTimeout(() => window.print(), 0));
 }
 
 function retirarDocumento() {
@@ -338,9 +348,11 @@ function construirDocumento(titulo, subtitulo, bloques) {
     documento.id = ID_DOCUMENTO;
 
     const cabecera = crear("header", "it-cabecera");
-    cabecera.append(
-        crear("div", "it-empresa", "Oreplast S.A. · Sistema de Control de Calidad"),
-        crear("h1", "it-titulo", titulo));
+    // El mismo logotipo de la barra de título (ya está en la caché del navegador).
+    const logo = crear("img", "it-logo");
+    logo.src = "img/Logo-Oreplast-Mail.jpg";
+    logo.alt = "Oreplast";
+    cabecera.append(logo, crear("h1", "it-titulo", titulo));
     if (subtitulo) {
         cabecera.append(crear("p", "it-subtitulo", subtitulo));
     }

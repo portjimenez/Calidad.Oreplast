@@ -31,7 +31,6 @@
     }
 
     .app-contenido {
-        padding: 0 !important;
         background: #fff !important;
     }
 
@@ -71,7 +70,6 @@
         top: 0;
         width: 100%;
         border: none;
-        padding: 0;
     }
 
     /* Las tablas de bobinas pueden pasar de una página: que no se corten a la
@@ -116,15 +114,18 @@
     }
 
     .it-cabecera {
-        border-bottom: 1.5pt solid #1f6fb2;
+        border-bottom: 1.5pt solid #000;
         padding-bottom: 4pt;
         margin-bottom: 8pt;
     }
 
-    .it-empresa {
-        font-size: 8pt;
-        color: #1f6fb2;
-        font-weight: bold;
+    /* Logotipo arriba a la izquierda. Es negro sobre blanco, así que respeta
+       la impresión en blanco y negro. */
+    .it-logo {
+        display: block;
+        height: 1.6cm;
+        width: auto;
+        margin-bottom: 4pt;
     }
 
     .it-titulo {
@@ -165,8 +166,9 @@
         vertical-align: top;
     }
 
+    /* Encabezado en gris (no azul): todo lo impreso sale en blanco y negro. */
     .it-tabla th {
-        background: #dde7f2;
+        background: #d9d9d9;
         font-weight: bold;
     }
 
@@ -184,7 +186,25 @@
         page-break-inside: avoid;
     }
 
+    /* ---------- Márgenes de la hoja ----------
+     * El navegador escribe su encabezado y su pie (fecha, título de la pestaña,
+     * URL y número de página) dentro del margen de @page. Con margen cero no
+     * tiene dónde ponerlos y no salen, sin depender de que el usuario desmarque
+     * "Encabezados y pies de página" en el diálogo.
+     *
+     * El margen pasa entonces al relleno del documento. box-decoration-break:
+     * clone repite ese relleno arriba y abajo de CADA hoja; sin él solo tendría
+     * margen el inicio de la primera y el final de la última. */
     @page {
-        margin: 1.5cm;
+        margin: 0;
+    }
+
+    .app-contenido,
+    #impresion-tabular,
+    #certificado-imprimible {
+        padding: 1.5cm !important;
+        box-sizing: border-box;
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
     }
 }
