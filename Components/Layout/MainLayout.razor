@@ -9,10 +9,15 @@
         <div class="app-titlebar__marca">
             <img class="app-titlebar__logo" src="img/Logo-Oreplast-Mail.jpg" alt="Oreplast" />
             <span class="app-titlebar__nombre">Control de Calidad</span>
-            <NavLink class="app-titlebar__ayuda" href="/ayuda" Match="NavLinkMatch.All">
+            @* La Ayuda es el Manual de Usuario en PDF (fuente: docs/Manual de Usuario.docx).
+               Se abre en otra pestaña para no sacar al usuario de lo que está capturando.
+               @Assets agrega la huella del archivo a la URL: al publicar un manual nuevo,
+               el navegador no se queda con la versión anterior en caché. *@
+            <a class="app-titlebar__ayuda" href="@Assets["docs/Manual-de-Usuario.pdf"]"
+               target="_blank" rel="noopener" title="Abrir el Manual de Usuario (PDF) en una pestaña nueva">
                 <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
                 Ayuda
-            </NavLink>
+            </a>
         </div>
         <div class="app-titlebar__usuario">
             <AuthorizeView>

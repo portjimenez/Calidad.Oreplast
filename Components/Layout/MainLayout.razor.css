@@ -44,9 +44,8 @@
     font-size: 0.85rem;
 }
 
-/* "Ayuda" va junto al nombre del sistema, como en el mockup. NavLink es un
-   componente aparte, por eso necesita ::deep para recibir el estilo aislado. */
-.app-titlebar__marca ::deep .app-titlebar__ayuda {
+/* "Ayuda" va junto al nombre del sistema, como en el mockup. Abre el manual en PDF. */
+.app-titlebar__ayuda {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -58,8 +57,7 @@
     text-decoration: none;
 }
 
-.app-titlebar__marca ::deep .app-titlebar__ayuda:hover,
-.app-titlebar__marca ::deep .app-titlebar__ayuda.active {
+.app-titlebar__ayuda:hover {
     background: rgba(255, 255, 255, 0.15);
 }
 

@@ -7,9 +7,9 @@ namespace calidad_app.Components.Layout;
 
 /// <summary>
 /// Las pantallas de la aplicación tal como se le ofrecen al usuario: grupo,
-/// texto, destino y para qué sirven. Lo leen el menú lateral, la barra de
-/// herramientas y la página de Ayuda, que así no pueden contradecirse (una
-/// pantalla nueva aparece en las tres con una sola línea aquí).
+/// texto, destino y para qué sirven. Lo leen el menú lateral y la barra de
+/// herramientas, que así no pueden contradecirse (una pantalla nueva aparece en
+/// los dos con una sola línea aquí).
 ///
 /// El permiso de cada entrada NO se escribe aquí: se lee del atributo
 /// [Authorize(Policy = "...")] de la propia pantalla destino, buscándola por su
